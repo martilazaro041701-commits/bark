@@ -1,5 +1,5 @@
 """
-URL configuration for bark_api project.
+URL configuration for modu_project project.
 
 The `urlpatterns` list routes URLs to views. For more information please see:
     https://docs.djangoproject.com/en/4.2/topics/http/urls/
@@ -17,7 +17,12 @@ Including another URLconf
 from django.contrib import admin
 from django.urls import include, path
 
+from core.views import HealthCheckView
+
 urlpatterns = [
     path("admin/", admin.site.urls),
-    path("api/", include("core.urls")),
+    path("api/health/", HealthCheckView.as_view(), name="api-health"),
+    path("api/modu/", include("core.urls")),       # Global/Profile settings
+    path("api/bark/", include("bark.urls")),       # BARK tool data
+    path("api/covy/", include("covyscope.urls")),  # Future COVYScope data
 ]

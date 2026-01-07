@@ -1,21 +1,16 @@
 from django.contrib import admin
-from .models import Customer_Data, RepairJob, Status, Status_Log
+from .models import Customer
+from bark.models import RepairJob
 
-admin.site.register(Customer_Data)
-admin.site.register(Status)
-admin.site.register(Status_Log)
+class RepairJobInline(admin.TabularInline):
+    model = RepairJob
+    extra = 0
+    fields = ("repairjob_uid", "estimate_price", "current_status", "estimate_date")
+    readonly_fields = fields
+    show_change_link = True
 
-@admin.register(RepairJob)
-class RepairJobAdmin(admin.ModelAdmin):
-    # Columns shown in the main list
-    list_display = ('repairjob_uid', 'customer', 'estimate_price', 'current_status', 'estimate_date')
-    
-    # Sidebar filters
-    list_filter = ('current_status', 'estimate_date')
-    
-    # Search functionality
-    search_fields = ('customer__name', 'repairjob_uid')
-    
-    # This allows you to SEE the calculated variance in the edit page
-    # even though it isn't a "real" column in the database
-    readonly_fields = ('price_variance',)
+@admin.register(Customer)
+class CustomerAdmin(admin.ModelAdmin):
+    list_display = ("full_name", "contact_number", "email", "customer_uuid", "last_update")
+    search_fields = ("full_name", "contact_number", "email", "customer_uuid")
+    inlines = [RepairJobInline]
