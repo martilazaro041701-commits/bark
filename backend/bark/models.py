@@ -1,7 +1,41 @@
 import uuid
 from django.db import models
+from django.conf import settings
 from decimal import Decimal
+import datetime
 
+
+def generate_bark_job_number():
+    year = datetime.date.today().year
+    last_job = RepairJob.objects.filter(job_number__contains=f"BARK-{year}").order_by('-id').first()
+    if not last_job:
+        return f"BARK-{year}-0001"
+    
+   
+    last_number = int(last_job.job_number.split('-')[-1])
+    new_number = str(last_number + 1).zfill(4)
+    return f"BARK-{year}-{new_number}"
+
+class AuditModel(models.Model):
+    """Abstract base class to provide audit fields automatically."""
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, 
+        on_delete=models.SET_NULL, 
+        null=True, 
+        related_name="%(class)s_created"
+    )
+    updated_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL, 
+        on_delete=models.SET_NULL, 
+        null=True, 
+        related_name="%(class)s_updated"
+    )
+
+    class Meta:
+        abstract = True
 
 class Status(models.Model):
     CATEGORY_CHOICES = [
@@ -25,11 +59,23 @@ class Status(models.Model):
 
 
 class RepairJob(models.Model):
+    job_number = models.CharField(
+        max_length=20, 
+        unique=True, 
+        default=generate_bark_job_number, 
+        editable=False
+    )
+    PRIORITY_CHOICES = [('low', 'Low'), ('medium', 'Medium'), ('high', 'High')]
+
+
     # LINK TO CUSTOMER
     customer = models.ForeignKey("core.Customer", on_delete=models.PROTECT, related_name="bark_jobs")
     vehicle = models.ForeignKey("bark.Vehicle", on_delete=models.PROTECT, related_name="repair_jobs")
     insurance = models.ForeignKey("bark.InsuranceCompany", on_delete=models.PROTECT, related_name="repair_jobs")
     repairjob_uid = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    job_number = models.CharField(max_length=20, unique=True)
+    priority = models.CharField(max_length=10, choices=PRIORITY_CHOICES, default='medium')
+    promised_date = models.DateTimeField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -85,7 +131,7 @@ class InsuranceCompany(models.Model):
 class Vehicle(models.Model):
     owner = models.ForeignKey("core.Customer", on_delete=models.PROTECT, related_name="vehicles")
     model = models.CharField(max_length=255)
-    plate_number = models.CharField(max_length=50, blank=True, default="")
+    plate_number = models.CharField(max_length=20)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -96,4 +142,10 @@ class JobMedia(models.Model):
     repair_job = models.ForeignKey(RepairJob, on_delete=models.CASCADE, related_name="media")
     image = models.ImageField(upload_to="repair_damages/")
     uploaded_at = models.DateTimeField(auto_now_add=True)
+
+
+
+
+
+
 
