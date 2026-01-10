@@ -91,3 +91,11 @@ button:focus-visible {
   background: rgba(255, 255, 255, 0.2);
   border-radius: 10px;
 }
+
+.folder-tab {
+  clip-path: polygon(0% 20%, 5% 20%, 8% 0%, 35% 0%, 40% 20%, 100% 20%, 100% 100%, 0% 100%);
+}
+
+.folder-body {
+  border-radius: 0 2rem 2rem 2rem;
+}
