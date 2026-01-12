@@ -13,7 +13,17 @@ import {
   Send,
   MoreHorizontal,
   ChevronLeft,
-  ChevronRight
+  ChevronRight,
+  Edit3,
+  Check,
+  AlertCircle,
+  Car,
+  Calendar,
+  DollarSign,
+  Trash2,
+  ShoppingBag,
+  Truck,
+  Box
 } from "lucide-react";
 
 // --- THEME CONSTANTS ---
@@ -67,119 +77,441 @@ function CurrentPill() {
   );
 }
 
-function SubtleTabButton({ icon, label, onClick }) {
+function SubtleTabButton({ icon, label, onClick, variant = "emerald" }) {
+  const styles = {
+    emerald: "bg-emerald-50/70 border-emerald-100 text-emerald-800 hover:bg-emerald-50",
+    blue: "bg-blue-50/70 border-blue-100 text-blue-800 hover:bg-blue-50"
+  };
+  const iconStyles = {
+    emerald: "text-emerald-700 border-emerald-100",
+    blue: "text-blue-700 border-blue-100"
+  };
+
   return (
-    <button onClick={onClick} className="group inline-flex items-center gap-3 h-11 px-4 rounded-2xl bg-emerald-50/70 border border-emerald-100 text-emerald-800 shadow-sm hover:shadow-md hover:bg-emerald-50 transition-all">
-      <span className="w-9 h-9 rounded-2xl bg-white border border-emerald-100 flex items-center justify-center text-emerald-700">{icon}</span>
+    <button onClick={onClick} className={`group inline-flex items-center gap-3 h-11 px-4 rounded-2xl border shadow-sm hover:shadow-md transition-all ${styles[variant]}`}>
+      <span className={`w-9 h-9 rounded-2xl bg-white border flex items-center justify-center ${iconStyles[variant]}`}>{icon}</span>
       <span className="text-[10px] font-black uppercase tracking-[0.25em]">{label}</span>
     </button>
   );
 }
 
-// --- CALENDAR / SCHEDULING TAB COMPONENT ---
-const INITIAL_EVENTS = [
-  { id: 1, title: "Disassembly", time: "09:00", duration: 2, day: "Mon", type: "urgent", color: "bg-red-100 text-red-700 border-red-200" },
-  { id: 2, title: "Paint Prep", time: "11:00", duration: 1.5, day: "Tue", type: "standard", color: "bg-blue-100 text-blue-700 border-blue-200" },
-  { id: 3, title: "Color Match", time: "14:00", duration: 1, day: "Wed", type: "review", color: "bg-purple-100 text-purple-700 border-purple-200" },
-  { id: 4, title: "Final Coat", time: "10:00", duration: 3, day: "Thu", type: "process", color: "bg-yellow-100 text-yellow-800 border-yellow-200" },
-  { id: 5, title: "QC Inspection", time: "13:00", duration: 1, day: "Fri", type: "check", color: "bg-emerald-100 text-emerald-700 border-emerald-200" },
-];
-
-const TIME_SLOTS = ["08:00", "09:00", "10:00", "11:00", "12:00", "13:00", "14:00", "15:00", "16:00", "17:00"];
-const DAYS = [
-  { name: "Mon", date: "12" },
-  { name: "Tue", date: "13" },
-  { name: "Wed", date: "14" },
-  { name: "Thu", date: "15" },
-  { name: "Fri", date: "16" },
-];
-
-const SchedulingTab = () => {
-  const [events, setEvents] = useState(INITIAL_EVENTS);
-  const [draggedEventId, setDraggedEventId] = useState(null);
-
-  const handleDragStart = (e, id) => {
-    setDraggedEventId(id);
-    e.dataTransfer.effectAllowed = "move";
-    const ghost = document.createElement('div');
-    ghost.style.opacity = '0';
-    document.body.appendChild(ghost);
-    e.dataTransfer.setDragImage(ghost, 0, 0);
-    setTimeout(() => document.body.removeChild(ghost), 0);
+// --- OVERVIEW TAB COMPONENT ---
+const OverviewTab = ({ job, isEditing, approvedCost, setApprovedCost, isPhase14Complete, policies, setPolicies }) => {
+  const needsCostUpdate = isPhase14Complete && (!approvedCost || approvedCost === "0");
+  
+  const handleAddPolicy = () => {
+    const newPolicy = prompt("Enter new Policy Number:");
+    if (newPolicy) setPolicies([...policies, newPolicy]);
   };
 
-  const handleDragOver = (e) => e.preventDefault();
-
-  const handleDrop = (e, day, time) => {
-    e.preventDefault();
-    if (!draggedEventId) return;
-    setEvents((prev) => prev.map((ev) => (ev.id === draggedEventId ? { ...ev, day, time } : ev)));
-    setDraggedEventId(null);
+  const handleRemovePolicy = (index) => {
+    setPolicies(policies.filter((_, i) => i !== index));
   };
 
   return (
-    <div className="flex flex-col h-full bg-[#FFFBF5] rounded-[2.5rem] p-8 overflow-hidden animate-in fade-in duration-500">
-      <div className="flex items-center justify-between mb-8">
+    <div className="animate-in fade-in slide-in-from-right-4 duration-500">
+      <div className="flex items-center justify-between mb-6">
         <div>
-          <h3 className="text-2xl font-black text-slate-900 tracking-tight">Team Schedule</h3>
-          <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mt-1">May 12 - May 16, 2026</p>
+          <h3 className="text-2xl font-black text-slate-900 uppercase tracking-tight">Job Overview</h3>
+          <p className="text-[9px] font-bold text-slate-400 uppercase tracking-[0.2em] mt-1">Reference Information</p>
         </div>
-        <div className="flex items-center gap-3">
-          <div className="flex bg-white rounded-xl p-1 shadow-sm border border-stone-100">
-            <button className="p-2 hover:bg-stone-50 rounded-lg text-stone-400 hover:text-stone-600 transition-colors"><ChevronLeft size={18} /></button>
-            <button className="p-2 hover:bg-stone-50 rounded-lg text-stone-400 hover:text-stone-600 transition-colors"><ChevronRight size={18} /></button>
+        {needsCostUpdate && (
+          <div className="flex items-center gap-2 px-4 py-2 bg-red-50 border border-red-100 rounded-xl text-red-600 animate-bounce">
+            <AlertCircle size={14} strokeWidth={3} />
+            <span className="text-[9px] font-black uppercase tracking-widest">Update Cost</span>
           </div>
-          <button className="flex items-center gap-2 px-5 py-3 bg-slate-900 text-white rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-slate-800 transition-all shadow-lg shadow-slate-200">
-            <Plus size={14} /> Add Event
-          </button>
+        )}
+      </div>
+
+      <div className="grid grid-cols-2 gap-4">
+        {/* Car Specs */}
+        <div className="bg-slate-50/50 border border-slate-100 p-6 rounded-[2rem] flex items-start gap-4">
+          <div className="w-11 h-11 bg-white rounded-xl flex items-center justify-center shadow-sm text-blue-600 shrink-0">
+            <Car size={20} />
+          </div>
+          <div className="overflow-hidden">
+            <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Vehicle Specs</p>
+            <p className="text-lg font-black text-slate-900 leading-tight uppercase break-normal">
+              2024 Montero Sport GT 4X4
+            </p>
+            <p className="text-[11px] font-bold text-slate-500 mt-1 uppercase tracking-wider">Pearl White • 2.4L Diesel</p>
+          </div>
+        </div>
+
+        {/* Insurance & Policy Management */}
+        <div className="bg-slate-50/50 border border-slate-100 p-6 rounded-[2rem] flex items-start gap-4 min-h-[140px]">
+          <div className="w-11 h-11 bg-white rounded-xl flex items-center justify-center shadow-sm text-purple-600 shrink-0">
+            <Building2 size={20} />
+          </div>
+          <div className="flex-1 overflow-hidden">
+            <div className="flex justify-between items-center mb-1">
+              <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Insurance Provider</p>
+              {isEditing && (
+                <button onClick={handleAddPolicy} className="text-purple-600 hover:text-purple-800 transition-colors">
+                  <Plus size={14} strokeWidth={3} />
+                </button>
+              )}
+            </div>
+            <p className="text-lg font-black text-slate-900 leading-tight uppercase mb-2">Malayan Insurance</p>
+            
+            <div className="space-y-1">
+              {policies.length > 0 ? (
+                policies.map((p, idx) => (
+                  <div key={idx} className="flex items-center justify-between group">
+                    <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider italic">Policy: {p}</p>
+                    {isEditing && (
+                      <button onClick={() => handleRemovePolicy(idx)} className="opacity-0 group-hover:opacity-100 text-red-400 hover:text-red-600 transition-all">
+                        <Trash2 size={12} />
+                      </button>
+                    )}
+                  </div>
+                ))
+              ) : (
+                <p className="text-[10px] font-bold text-slate-300 uppercase italic">No policies listed</p>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* Dates */}
+        <div className="bg-slate-50/50 border border-slate-100 p-6 rounded-[2rem] flex items-start gap-4">
+          <div className="w-11 h-11 bg-white rounded-xl flex items-center justify-center shadow-sm text-emerald-600 shrink-0">
+            <Calendar size={20} />
+          </div>
+          <div className="overflow-hidden">
+            <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Job Timeline</p>
+            <p className="text-lg font-black text-slate-900 leading-tight uppercase">Created Jan 12, 2026</p>
+            <p className="text-[11px] font-bold text-slate-500 mt-1 uppercase tracking-wider">Est. Completion: Feb 05</p>
+          </div>
+        </div>
+
+        {/* Financials */}
+        <div className={`p-6 rounded-[2rem] flex items-start gap-4 transition-all duration-500 border-2 ${needsCostUpdate ? "bg-red-50 border-red-200 shadow-lg shadow-red-100/50" : "bg-white border-slate-100 shadow-sm"}`}>
+          <div className={`w-11 h-11 rounded-xl flex items-center justify-center shadow-sm shrink-0 ${needsCostUpdate ? "bg-red-500 text-white" : "bg-slate-900 text-white"}`}>
+            <DollarSign size={20} />
+          </div>
+          <div className="flex-1">
+            <p className={`text-[9px] font-black uppercase tracking-widest mb-1 ${needsCostUpdate ? "text-red-500" : "text-slate-400"}`}>Repair Costs</p>
+            <div className="space-y-3">
+              <div>
+                <span className="text-[8px] font-black text-slate-400 uppercase block mb-0.5">Initial Estimate</span>
+                <p className="text-base font-black text-slate-900">₱ 45,250.00</p>
+              </div>
+              <div className="pt-2 border-t border-slate-100">
+                <span className="text-[8px] font-black text-blue-600 uppercase block mb-1">Approved Repair Cost</span>
+                {isEditing ? (
+                  <div className="relative mt-1">
+                    <span className="absolute left-2 top-1/2 -translate-y-1/2 font-black text-slate-400 text-xs">₱</span>
+                    <input 
+                      type="text" 
+                      value={approvedCost} 
+                      onChange={(e) => setApprovedCost(e.target.value)}
+                      className="w-full bg-white border border-blue-100 rounded-lg py-1 pl-5 pr-2 font-black text-xs focus:ring-2 focus:ring-blue-50 outline-none"
+                    />
+                  </div>
+                ) : (
+                  <p className={`text-lg font-black ${!approvedCost || approvedCost === "0" ? "text-slate-300 italic" : "text-blue-600"}`}>
+                    {approvedCost && approvedCost !== "0" ? `₱ ${Number(approvedCost).toLocaleString('en-US', {minimumFractionDigits: 2})}` : "Not Set"}
+                  </p>
+                )}
+              </div>
+            </div>
+          </div>
         </div>
       </div>
-      <div className="flex-1 overflow-y-auto relative bg-white/50 rounded-[2rem] border border-stone-100 shadow-inner p-6">
-        <div className="grid grid-cols-[60px_1fr_1fr_1fr_1fr_1fr] gap-4 mb-6 sticky top-0 z-10">
-          <div className="pt-8 text-[10px] font-black text-stone-300 text-center uppercase tracking-widest">GMT+8</div>
-          {DAYS.map((day) => {
-             const isToday = day.name === "Thu"; 
-             return (
-              <div key={day.name} className={`text-center py-4 rounded-2xl ${isToday ? "bg-slate-900 text-white shadow-xl" : "bg-white text-slate-900 border border-stone-100"}`}>
-                <div className="text-[9px] font-black uppercase tracking-[0.2em] opacity-60 mb-1">{day.name}</div>
-                <div className="text-xl font-black tracking-tight">{day.date}</div>
-              </div>
-             )
-          })}
-        </div>
-        <div className="relative">
-          {TIME_SLOTS.map((time) => (
-            <div key={time} className="grid grid-cols-[60px_1fr_1fr_1fr_1fr_1fr] gap-4 min-h-[100px] group">
-              <div className="text-right pr-4 text-[10px] font-bold text-stone-300 -mt-2 group-hover:text-stone-400 transition-colors">{time}</div>
-              {DAYS.map((day) => (
-                <div
-                  key={`${day.name}-${time}`}
-                  onDragOver={handleDragOver}
-                  onDrop={(e) => handleDrop(e, day.name, time)}
-                  className="relative border-t border-dashed border-stone-200 hover:bg-stone-50/50 transition-colors rounded-xl"
-                >
-                  {events.filter((ev) => ev.day === day.name && ev.time === time).map((ev) => (
-                    <div
-                      key={ev.id}
-                      draggable
-                      onDragStart={(e) => handleDragStart(e, ev.id)}
-                      className={`absolute top-2 left-2 right-2 z-10 p-4 rounded-2xl border cursor-move transition-all shadow-sm hover:shadow-md active:scale-95 active:rotate-1 ${ev.color} ${draggedEventId === ev.id ? 'opacity-50' : 'opacity-100'}`}
-                      style={{ height: `${ev.duration * 90}px` }}
-                    >
-                      <div className="flex justify-between items-start">
-                        <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-white/40 text-[10px] font-bold mb-2">{ev.title.charAt(0)}</span>
-                        <button className="opacity-0 group-hover:opacity-100 transition-opacity"><MoreHorizontal size={14} /></button>
-                      </div>
-                      <h4 className="text-sm font-black leading-tight mb-1">{ev.title}</h4>
-                      <div className="flex items-center gap-1.5 opacity-80"><Clock size={10} /><span className="text-[9px] font-bold uppercase tracking-wider">{ev.time} - {parseInt(ev.time) + Math.floor(ev.duration)}:00</span></div>
-                    </div>
-                  ))}
-                </div>
-              ))}
+    </div>
+  );
+};
+
+// --- APPROVAL TAB COMPONENT ---
+const ApprovalTab = ({ policies, approvedCost, phases }) => {
+  const getLOAStatus = () => {
+    const phase1 = phases.find(p => p.phaseNo === 1);
+    if (!phase1) return "Pending";
+    const steps = phase1.steps;
+    if (steps.find(s => s.id === "1.4" && s.status === "complete")) return "Approved";
+    if (steps.find(s => s.id === "1.3" && (s.status === "complete" || s.status === "ongoing"))) return "Revising";
+    if (steps.find(s => s.id === "1.2" && (s.status === "complete" || s.status === "ongoing"))) return "Processing";
+    return "Pending";
+  };
+
+  const loaStatus = getLOAStatus();
+
+  return (
+    <div className="animate-in fade-in slide-in-from-right-4 duration-500">
+      <div className="mb-8">
+        <h3 className="text-2xl font-black text-slate-900 uppercase tracking-tight">Approval Summary</h3>
+        <p className="text-[9px] font-bold text-slate-400 uppercase tracking-[0.2em] mt-1">Authorization & Verification</p>
+      </div>
+
+      <div className="grid grid-cols-1 gap-6">
+        <div className="bg-slate-50/50 border border-slate-100 rounded-[2.5rem] p-8">
+          <div className="flex items-center gap-6">
+            <div className="w-16 h-16 bg-white shadow-sm rounded-2xl flex items-center justify-center text-purple-600">
+              <Building2 size={32} />
             </div>
-          ))}
-          <div className="absolute top-[340px] left-[60px] right-0 h-[2px] bg-red-400 z-0 pointer-events-none opacity-40"><div className="absolute -left-1.5 -top-1 w-2.5 h-2.5 rounded-full bg-red-400" /></div>
+            <div>
+              <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Insurance Provider</p>
+              <p className="text-2xl font-black text-slate-900 uppercase">Malayan Insurance</p>
+              <div className="flex gap-2 mt-2">
+                {policies.map((p, i) => (
+                  <span key={i} className="px-3 py-1 bg-purple-50 text-purple-700 rounded-lg text-[10px] font-black uppercase tracking-wider border border-purple-100">
+                    {p}
+                  </span>
+                ))}
+              </div>
+            </div>
+          </div>
         </div>
+
+        <div className="grid grid-cols-2 gap-6">
+          <div className="bg-blue-600 rounded-[2.5rem] p-8 text-white shadow-xl shadow-blue-100">
+            <div className="flex items-center gap-4 mb-4">
+              <div className="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center"><DollarSign size={20} /></div>
+              <p className="text-[10px] font-black uppercase tracking-[0.2em] text-blue-100">Approved Amount</p>
+            </div>
+            <p className="text-3xl font-black tracking-tight">
+              ₱ {Number(approvedCost || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}
+            </p>
+            <p className="text-[10px] font-medium text-blue-200 mt-2 uppercase italic tracking-widest">Synced with Overview</p>
+          </div>
+
+          <div className="bg-slate-900 rounded-[2.5rem] p-8 text-white shadow-xl shadow-slate-200">
+            <div className="flex items-center gap-4 mb-4">
+              <div className="w-10 h-10 bg-white/10 rounded-xl flex items-center justify-center"><Send size={20} /></div>
+              <p className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">Current LOA Status</p>
+            </div>
+            <div className="flex items-center gap-3">
+              <p className="text-3xl font-black tracking-tight uppercase">{loaStatus}</p>
+              <div className={`w-3 h-3 rounded-full animate-pulse ${
+                loaStatus === "Approved" ? "bg-emerald-400" : 
+                loaStatus === "Revising" ? "bg-amber-400" : "bg-blue-400"
+              }`} />
+            </div>
+            <p className="text-[10px] font-medium text-slate-500 mt-2 uppercase tracking-widest">Derived from Phase 1</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// --- PARTS ORDER TAB COMPONENT ---
+const PartsOrderTab = ({ parts, setParts, isEditing }) => {
+  const addPart = () => {
+    const partNo = prompt("Part Number:");
+    const desc = prompt("Description:");
+    if (partNo && desc) {
+      setParts([...parts, {
+        id: Date.now(),
+        partNo: partNo.toUpperCase(),
+        description: desc,
+        status: "Ordered",
+        date: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+      }]);
+    }
+  };
+
+  const toggleStatus = (id) => {
+    setParts(parts.map(p => {
+      if (p.id === id) {
+        const newStatus = p.status === "Ordered" ? "Delivered" : "Ordered";
+        return { 
+          ...p, 
+          status: newStatus,
+          date: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) 
+        };
+      }
+      return p;
+    }));
+  };
+
+  const removePart = (id) => setParts(parts.filter(p => p.id !== id));
+
+  return (
+    <div className="animate-in fade-in slide-in-from-right-4 duration-500">
+      <div className="flex justify-between items-center mb-10">
+        <div>
+          <h3 className="text-2xl font-black text-slate-900 uppercase tracking-tight">Parts Ledger</h3>
+          <p className="text-[9px] font-bold text-slate-400 uppercase tracking-[0.2em] mt-1">Inventory & Procurement Tracking</p>
+        </div>
+        {isEditing && (
+          <button onClick={addPart} className="flex items-center gap-2 px-6 py-3 bg-blue-600 text-white rounded-2xl text-[10px] font-black uppercase tracking-widest shadow-lg shadow-blue-100 hover:scale-105 transition-all">
+            <Plus size={16} strokeWidth={3} /> Add New Part
+          </button>
+        )}
+      </div>
+
+      <div className="bg-white border border-slate-100 rounded-[2.5rem] overflow-hidden shadow-sm">
+        <table className="w-full text-left border-collapse">
+          <thead>
+            <tr className="bg-slate-50/50 border-bottom border-slate-100">
+              <th className="px-8 py-5 text-[9px] font-black text-slate-400 uppercase tracking-[0.2em]">Part Number</th>
+              <th className="px-8 py-5 text-[9px] font-black text-slate-400 uppercase tracking-[0.2em]">Description</th>
+              <th className="px-8 py-5 text-[9px] font-black text-slate-400 uppercase tracking-[0.2em]">Status</th>
+              <th className="px-8 py-5 text-[9px] font-black text-slate-400 uppercase tracking-[0.2em]">Last Update</th>
+              {isEditing && <th className="px-8 py-5 text-[9px] font-black text-slate-400 uppercase tracking-[0.2em] text-right">Action</th>}
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-slate-50">
+            {parts.length > 0 ? parts.map((part) => (
+              <tr key={part.id} className="group hover:bg-slate-50/30 transition-colors">
+                <td className="px-8 py-6">
+                  <span className="text-xs font-black text-blue-600 tracking-wider font-mono bg-blue-50 px-2 py-1 rounded-md">{part.partNo}</span>
+                </td>
+                <td className="px-8 py-6">
+                  <p className="text-xs font-bold text-slate-700 uppercase tracking-tight">{part.description}</p>
+                </td>
+                <td className="px-8 py-6">
+                  <button 
+                    disabled={!isEditing}
+                    onClick={() => toggleStatus(part.id)}
+                    className={`flex items-center gap-2 px-3 py-1.5 rounded-full border text-[9px] font-black uppercase tracking-widest transition-all ${
+                      part.status === "Delivered" 
+                      ? "bg-emerald-50 text-emerald-700 border-emerald-100" 
+                      : "bg-amber-50 text-amber-700 border-amber-100 animate-pulse"
+                    }`}
+                  >
+                    {part.status === "Delivered" ? <CheckCircle2 size={12} /> : <Truck size={12} />}
+                    {part.status}
+                  </button>
+                </td>
+                <td className="px-8 py-6 text-[11px] font-bold text-slate-400 uppercase tracking-widest">
+                  {part.date}
+                </td>
+                {isEditing && (
+                  <td className="px-8 py-6 text-right">
+                    <button onClick={() => removePart(part.id)} className="text-slate-300 hover:text-red-500 transition-colors">
+                      <Trash2 size={16} />
+                    </button>
+                  </td>
+                )}
+              </tr>
+            )) : (
+              <tr>
+                <td colSpan={isEditing ? 5 : 4} className="px-8 py-20 text-center">
+                  <div className="flex flex-col items-center gap-3 opacity-20">
+                    <Box size={48} />
+                    <p className="text-[10px] font-black uppercase tracking-widest">No parts listed in ledger</p>
+                  </div>
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+};
+
+// --- PROCESS TREE COMPONENTS ---
+const ProcessTree = ({ onAddNote, currentPhaseNo, currentStepId, isEditing, phases }) => {
+  const [expanded, setExpanded] = useState({ 1: false, 2: true });
+  const togglePhase = (phaseNo) => setExpanded((p) => ({ ...p, [phaseNo]: !p[phaseNo] }));
+
+  return (
+    <div className="relative pl-16">
+      <div className="absolute left-[24px] top-0 bottom-0 w-[2px] bg-slate-100" />
+      <div className="space-y-16">
+        {phases.map((phase) => {
+          const theme = PHASE_THEME[phase.phaseNo] || PHASE_THEME[1];
+          const isCurrentPhase = phase.phaseNo === currentPhaseNo;
+
+          return (
+            <div key={phase.phaseNo} className="relative">
+              <div className={`absolute left-[16px] top-9 w-4 h-4 rounded-full border-4 border-white shadow-lg z-20 ${isCurrentPhase ? theme.dot : "bg-slate-200"}`} />
+              
+              <div className="ml-16 flex items-start gap-4">
+                <PhaseCard phase={phase} theme={theme} isCurrent={isCurrentPhase} />
+                <div className="pt-3 space-y-3">
+                  <SubtleTabButton icon={<StickyNote size={16} strokeWidth={2.5} />} label="Add Note" onClick={onAddNote} />
+                  <SubtleTabButton icon={expanded[phase.phaseNo] ? <ChevronUp size={16} /> : <ChevronDown size={16} />} label={expanded[phase.phaseNo] ? "Hide" : "View"} onClick={() => togglePhase(phase.phaseNo)} />
+                </div>
+              </div>
+
+              <div className="ml-16 mt-7 space-y-4">
+                {expanded[phase.phaseNo] && phase.steps.map((s) => (
+                    <div key={s.id} className="flex items-start gap-4">
+                      <div className="relative w-10 shrink-0">
+                        <div className="absolute left-[18px] top-1/2 -translate-y-1/2 w-2 h-2 rounded-full bg-slate-200" />
+                      </div>
+                      <SubPhaseCard phaseNo={phase.phaseNo} step={s} isCurrent={isCurrentPhase && s.id === currentStepId} />
+                    </div>
+                ))}
+                
+                {isCurrentPhase && (
+                  <button className="flex items-center gap-2 ml-14 px-4 py-2 bg-emerald-50 text-emerald-800 rounded-xl text-[10px] font-black uppercase border border-emerald-100 hover:bg-emerald-100 transition-colors">
+                    <Plus size={14} /> Add Subphase
+                  </button>
+                )}
+              </div>
+            </div>
+          );
+        })}
+
+        <button className="flex items-center gap-3 ml-16 px-6 py-4 bg-slate-900 text-white rounded-2xl text-[11px] font-black uppercase tracking-widest hover:bg-blue-600 transition-all shadow-xl">
+          <Plus size={18} /> Add Next Phase
+        </button>
+      </div>
+    </div>
+  );
+};
+
+const PhaseCard = ({ phase, theme, isCurrent }) => {
+  const isDone = phase.status === "complete";
+  const isPhase1 = phase.phaseNo === 1;
+  const base = isPhase1 ? `${theme.solid} text-white shadow-2xl ${theme.shadow}` : `bg-white border-2 ${theme.border} text-slate-900 shadow-lg`;
+
+  return (
+    <div className={`relative w-full max-w-[360px] rounded-[2.8rem] px-8 py-7 ${base}`}>
+      <div className="absolute right-6 top-6"><PhaseMetaPill isDone={isDone} doneDays={phase.doneDays} /></div>
+      <span className={`text-[10px] font-black uppercase tracking-[0.35em] ${isPhase1 ? "text-white/70" : theme.text}`}>PHASE {phase.phaseNo}</span>
+      <p className={`mt-3 text-[28px] leading-[1.05] font-black uppercase tracking-tight ${isPhase1 ? "text-white" : "text-slate-900"}`}>{phase.title}</p>
+      <div className="mt-7 flex items-center justify-between gap-6">
+        <StatusChip status={isDone ? "complete" : phase.status === "ongoing" ? "ongoing" : "pending"} />
+        {isCurrent && <CurrentPill />}
+      </div>
+    </div>
+  );
+};
+
+const SubPhaseCard = ({ phaseNo, step, isCurrent }) => {
+  const isDone = step.status === "complete";
+  const isOngoing = step.status === "ongoing";
+
+  return (
+    <div className={`group relative flex-1 bg-white rounded-[2rem] border shadow-sm px-6 py-5 ${isCurrent ? "border-yellow-200 shadow-yellow-100 bg-yellow-50/25" : "border-slate-100"}`}>
+      <div className="flex items-center justify-between gap-4">
+        <div className="flex items-center gap-4">
+          <div className={`w-12 h-12 rounded-2xl flex items-center justify-center border-2 ${isDone ? "bg-emerald-50 text-emerald-700 border-emerald-200" : isOngoing ? "bg-yellow-50 text-yellow-800 border-yellow-200" : "bg-slate-50 text-slate-500 border-slate-100"}`}>
+            {isDone ? <CheckCircle2 size={18} /> : isOngoing ? <RefreshCw size={16} className="animate-spin" /> : <span className="text-[11px] font-black">{step.id.split(".")[1]}</span>}
+          </div>
+          <div>
+            <p className="text-[12px] font-black uppercase tracking-widest text-slate-900">PHASE {step.id} {step.title}</p>
+            <div className="mt-3 flex gap-8">
+              <div>
+                <p className="text-[9px] font-black uppercase tracking-widest text-slate-400 mb-0.5">Started</p>
+                <p className="text-[12px] font-bold text-slate-800">{step.started ?? "—"}</p>
+              </div>
+              <div>
+                <p className="text-[9px] font-black uppercase tracking-widest text-slate-400 mb-0.5">Completed</p>
+                <p className="text-[12px] font-bold text-slate-800">{step.completed ?? "—"}</p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {step.note && (
+          <div className="relative">
+            <div className="p-2 text-slate-300 group-hover:text-blue-500 transition-colors cursor-help">
+              <StickyNote size={18} />
+            </div>
+            <div className="absolute right-0 bottom-full mb-3 w-48 p-3 bg-slate-900 text-white text-[10px] font-bold leading-relaxed rounded-xl opacity-0 group-hover:opacity-100 pointer-events-none transition-all duration-200 shadow-2xl z-50 transform translate-y-2 group-hover:translate-y-0">
+              {step.note}
+              <div className="absolute top-full right-3 border-8 border-transparent border-t-slate-900" />
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
@@ -187,9 +519,34 @@ const SchedulingTab = () => {
 
 // --- MAIN MODAL COMPONENT ---
 const JobDetailModal = ({ isOpen, onClose, job }) => {
-  const [activeTab, setActiveTab] = useState("Approval Process");
-  const [isAddingNote, setIsAddingNote] = useState(false);
-  const [noteContent, setNoteContent] = useState("");
+  const [activeTab, setActiveTab] = useState("Overview");
+  const [isEditing, setIsEditing] = useState(false);
+  const [approvedCost, setApprovedCost] = useState("0");
+  const [policies, setPolicies] = useState(["PN-88219-B"]);
+  const [parts, setParts] = useState([
+    { id: 1, partNo: "MS-2024-FR-01", description: "Front Bumper Assembly", status: "Delivered", date: "Jan 10" },
+    { id: 2, partNo: "MS-2024-HL-02", description: "Right LED Headlight", status: "Ordered", date: "Jan 11" }
+  ]);
+  
+  const phases = useMemo(() => [
+    {
+      phaseNo: 1, title: "Approval Process", status: "complete", doneDays: "4D",
+      steps: [
+        { id: "1.1", title: "Estimate Done", status: "complete", started: "Jan 01, 2026", completed: "Jan 01, 2026", note: "Estimate confirmed by insurer." },
+        { id: "1.2", title: "LOA Processing", status: "complete", started: "Jan 02, 2026", completed: "Jan 04, 2026", note: "Customer requested express body paint." },
+        { id: "1.3", title: "LOA Revising", status: "complete", started: "Jan 04, 2026", completed: "Jan 05, 2026" },
+        { id: "1.4", title: "LOA Approved", status: "complete", started: "Jan 05, 2026", completed: "Jan 05, 2026" },
+        { id: "1.5", title: "Final Confirmation", status: "complete", started: "Jan 06, 2026", completed: "Jan 06, 2026" },
+      ],
+    },
+    {
+      phaseNo: 2, title: "Material Procurement", status: "ongoing",
+      steps: [
+        { id: "2.1", title: "Parts Inventory Audit", status: "ongoing", started: "Jan 08, 2026", note: "Headlight assembly backordered." },
+        { id: "2.2", title: "Parts Ordered", status: "pending" },
+      ],
+    },
+  ], []);
 
   if (!isOpen || !job) return null;
 
@@ -202,7 +559,6 @@ const JobDetailModal = ({ isOpen, onClose, job }) => {
         </div>
 
         <div className="bg-white flex-1 rounded-[3.5rem] rounded-tl-none shadow-2xl flex flex-col overflow-hidden border border-white">
-          {/* Header */}
           <div className="px-12 py-10 flex justify-between items-start shrink-0">
             <div className="flex items-center gap-6">
               <div className="w-20 h-20 bg-blue-600 rounded-[2rem] flex items-center justify-center text-white shadow-2xl shadow-blue-200">
@@ -225,240 +581,60 @@ const JobDetailModal = ({ isOpen, onClose, job }) => {
                   <span className="text-xl">{job.phaseTime}</span>
                 </div>
               </div>
-              <button className="group relative flex items-center gap-2 px-6 py-4 bg-slate-900 text-white rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-blue-600 transition-all shadow-xl">
-                <RefreshCw size={16} className="group-hover:rotate-180 transition-transform duration-500" />
-                Update Status
+              
+              <button 
+                onClick={() => setIsEditing(!isEditing)}
+                className={`group relative flex items-center gap-3 px-6 py-4 rounded-2xl font-black text-xs uppercase tracking-widest transition-all shadow-xl ${
+                  isEditing ? "bg-blue-600 text-white ring-4 ring-blue-100" : "bg-slate-900 text-white hover:bg-blue-600"
+                }`}
+              >
+                {isEditing ? <Check size={16} /> : <Edit3 size={16} />}
+                {isEditing ? "Save Changes" : "Edit Repair Job"}
               </button>
+
               <button onClick={onClose} className="p-3 bg-slate-50 hover:bg-red-50 hover:text-red-500 rounded-2xl transition-all text-slate-400">
                 <X size={24} strokeWidth={3} />
               </button>
             </div>
           </div>
 
-          {/* Navigation Tabs */}
           <div className="px-12 flex gap-4 shrink-0">
             {["Overview", "Approval Process", "Parts Order", "Scheduling", "Repair", "Billing"].map((t) => (
               <button key={t} onClick={() => setActiveTab(t)} className={`px-8 py-4 rounded-t-2xl text-[11px] font-black uppercase tracking-widest transition-all ${activeTab === t ? "bg-slate-900 text-white" : "bg-slate-50 text-slate-400 hover:bg-slate-100"}`}>{t}</button>
             ))}
           </div>
 
-          {/* Main Body */}
           <div className="flex-1 overflow-hidden flex bg-white border-t border-slate-100">
-            {/* Sidebar Adjusted to 50% width as requested (w-1/2) */}
             <div className="w-1/2 border-r border-slate-50 p-10 overflow-y-auto overflow-x-visible bg-slate-50/20">
               <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.3em] mb-12">Process Dynamics</h4>
-              <ProcessTree onAddNote={() => setIsAddingNote(true)} currentPhaseNo={2} currentStepId="2.1" />
+              <ProcessTree onAddNote={() => {}} currentPhaseNo={2} currentStepId="2.1" isEditing={isEditing} phases={phases} />
             </div>
 
-            <div className="flex-1 p-12 overflow-y-auto relative">
-              {isAddingNote && (
-                <div className="absolute inset-x-12 top-12 z-20 bg-yellow-50 border-2 border-yellow-200 p-8 rounded-[2.5rem] shadow-2xl animate-in slide-in-from-top-4">
-                  <div className="flex justify-between items-center mb-4">
-                    <span className="text-[10px] font-black uppercase text-yellow-700 tracking-widest">New Timeline Note</span>
-                    <button onClick={() => setIsAddingNote(false)}><X size={18} className="text-yellow-700" /></button>
-                  </div>
-                  <textarea autoFocus value={noteContent} onChange={(e) => setNoteContent(e.target.value)} placeholder="Type technical notes or repair updates here..." className="w-full h-32 bg-transparent border-none focus:ring-0 font-bold text-black placeholder:text-black/40 resize-none text-lg" />
-                  <div className="flex justify-end mt-4">
-                    <button className="flex items-center gap-2 px-8 py-3 bg-yellow-600 text-white rounded-xl text-[10px] font-black uppercase shadow-lg shadow-yellow-200" onClick={() => setIsAddingNote(false)}>
-                      <Send size={14} /> Post Note
-                    </button>
-                  </div>
-                </div>
-              )}
-              
-              {/* Content Area with Scheduling Tab Integration */}
-              {activeTab === "Scheduling" ? (
-                <SchedulingTab />
+            <div className="flex-1 p-12 overflow-y-auto">
+              {activeTab === "Overview" ? (
+                <OverviewTab 
+                  job={job} isEditing={isEditing} approvedCost={approvedCost} 
+                  setApprovedCost={setApprovedCost} isPhase14Complete={true}
+                  policies={policies} setPolicies={setPolicies}
+                />
+              ) : activeTab === "Approval Process" ? (
+                <ApprovalTab 
+                  policies={policies} approvedCost={approvedCost} phases={phases}
+                />
+              ) : activeTab === "Parts Order" ? (
+                <PartsOrderTab 
+                  parts={parts} setParts={setParts} isEditing={isEditing}
+                />
               ) : (
                 <div className="max-w-3xl animate-in slide-in-from-right-4">
                   <h3 className="text-4xl font-black text-slate-900 mb-6 uppercase tracking-tight">{activeTab}</h3>
-                  <div className="bg-white p-12 rounded-[3rem] border border-slate-100 shadow-[0_20px_50px_rgba(0,0,0,0.02)]">
-                    <p className="text-slate-500 font-medium leading-relaxed text-lg">Detailed documentation for {activeTab}. Use the left timeline to track micro-progress.</p>
-                  </div>
+                  <p className="text-slate-500 font-medium leading-relaxed text-lg">Detailed documentation for {activeTab}.</p>
                 </div>
               )}
             </div>
           </div>
         </div>
       </div>
-    </div>
-  );
-};
-
-// --- PROCESS COMPONENTS ---
-const ProcessTree = ({ onAddNote, currentPhaseNo, currentStepId }) => {
-  const phases = useMemo(() => [
-    {
-      phaseNo: 1, title: "Approval Process", status: "complete", doneDays: "4D",
-      steps: [
-        { id: "1.1", title: "Estimate Done", status: "complete", started: "Jan 01, 2026", completed: "Jan 01, 2026", note: "Estimate confirmed by insurer." },
-        { id: "1.2", title: "LOA Processing", status: "complete", started: "Jan 02, 2026", completed: "Jan 04, 2026", note: "Customer requested express body paint." },
-        { id: "1.3", title: "LOA Revising", status: "complete", started: "Jan 04, 2026", completed: "Jan 05, 2026" },
-        { id: "1.4", title: "LOA Approved", status: "complete", started: "Jan 05, 2026", completed: "Jan 05, 2026" },
-        { id: "1.5", title: "Final Confirmation", status: "complete", started: "Jan 06, 2026", completed: "Jan 06, 2026" },
-      ],
-    },
-    {
-      phaseNo: 2, title: "Material Procurement", status: "ongoing",
-      steps: [
-        { id: "2.1", title: "Parts Inventory Audit", status: "ongoing", started: "Jan 08, 2026" },
-        { id: "2.2", title: "Parts Ordered", status: "pending" },
-        { id: "2.3", title: "Partial Parts Received", status: "pending" },
-        { id: "2.4", title: "Parts Complete", status: "pending" },
-      ],
-    },
-    {
-      phaseNo: 3, title: "Scheduling", status: "pending",
-      steps: [
-        { id: "3.1", title: "Waiting for Scheduling", status: "pending" },
-        { id: "3.2", title: "Scheduled for Repair", status: "pending" },
-      ],
-    },
-  ], []);
-
-  const [expanded, setExpanded] = useState(() => {
-    const init = {};
-    phases.forEach((p) => (init[p.phaseNo] = p.phaseNo === currentPhaseNo));
-    return init;
-  });
-
-  const togglePhase = (phaseNo) => setExpanded((p) => ({ ...p, [phaseNo]: !p[phaseNo] }));
-  const visiblePhases = phases.filter((p) => p.phaseNo <= currentPhaseNo);
-
-  return (
-    <div className="relative pl-16">
-      <div className="absolute left-[24px] top-0 bottom-0 w-[2px] bg-slate-100" />
-      <div className="space-y-16">
-        {visiblePhases.map((phase) => {
-          const theme = PHASE_THEME[phase.phaseNo] || PHASE_THEME[1];
-          const isCurrentPhase = phase.phaseNo === currentPhaseNo;
-
-          return (
-            <div key={phase.phaseNo} className="relative">
-              <div className={`absolute left-[16px] top-9 w-4 h-4 rounded-full border-4 border-white shadow-lg z-20 ${isCurrentPhase ? theme.dot : "bg-slate-200"}`} />
-              
-              <div className="ml-16 flex items-start gap-4">
-                <PhaseCard phase={phase} theme={theme} isCurrent={isCurrentPhase} />
-                <div className="pt-3 space-y-3">
-                  <SubtleTabButton icon={<StickyNote size={16} strokeWidth={2.5} />} label="Add Note" onClick={onAddNote} />
-                  <SubtleTabButton icon={expanded[phase.phaseNo] ? <ChevronUp size={16} /> : <ChevronDown size={16} />} label={expanded[phase.phaseNo] ? "Hide" : "View"} onClick={() => togglePhase(phase.phaseNo)} />
-                </div>
-              </div>
-
-              <div className="ml-16 mt-7 space-y-4">
-                {phase.steps.map((s) => {
-                  const isCurrentStep = isCurrentPhase && s.id === currentStepId;
-                  const isOngoingStep = s.status === "ongoing";
-                  const shouldShow = expanded[phase.phaseNo] || isOngoingStep || isCurrentStep;
-
-                  if (!shouldShow) return null;
-
-                  return (
-                    <div key={s.id} className="flex items-start gap-4 animate-in fade-in slide-in-from-left-2">
-                      <div className="relative w-10 shrink-0">
-                        <div className="absolute left-[18px] top-1/2 -translate-y-1/2 w-2 h-2 rounded-full bg-slate-200" />
-                      </div>
-                      
-                      <SubPhaseCard phaseNo={phase.phaseNo} step={s} isCurrent={isCurrentStep} />
-                      
-                      {s.note && (
-                        <div className="group relative shrink-0 z-10 self-center">
-                          <div className="w-36 group-hover:w-80 group-hover:absolute group-hover:right-0 group-hover:top-1/2 group-hover:-translate-y-1/2 bg-yellow-50 border border-yellow-200 p-4 rounded-[1.8rem] shadow-sm transition-all duration-300 ease-in-out border-l-4 border-l-yellow-400 cursor-help overflow-hidden group-hover:shadow-2xl group-hover:z-[60] bg-white">
-                            <div className="flex items-center gap-1.5 mb-1 text-yellow-700 shrink-0">
-                              <StickyNote size={12} strokeWidth={3} />
-                              <span className="text-[9px] font-black uppercase tracking-widest">Note</span>
-                            </div>
-                            <p className="text-[11px] font-bold text-black leading-tight italic truncate group-hover:whitespace-normal group-hover:overflow-visible">
-                              "{s.note}"
-                            </p>
-                          </div>
-                          <div className="w-36 h-12 invisible" />
-                        </div>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-
-              {isCurrentPhase && (
-                <div className="ml-16 mt-8">
-                  <button className="group inline-flex items-center gap-3 h-11 px-4 rounded-2xl bg-emerald-50/70 border border-emerald-100 text-emerald-800 shadow-sm hover:shadow-md hover:bg-emerald-50 transition-all">
-                    <span className="w-9 h-9 rounded-2xl bg-white border border-emerald-100 flex items-center justify-center text-emerald-700"><Plus size={18} /></span>
-                    <span className="text-[10px] font-black uppercase tracking-[0.25em]">Add Next Phase</span>
-                  </button>
-                </div>
-              )}
-            </div>
-          );
-        })}
-      </div>
-    </div>
-  );
-};
-
-const PhaseCard = ({ phase, theme, isCurrent }) => {
-  const isDone = phase.status === "complete";
-  const isOngoing = phase.status === "ongoing";
-  const isPhase1 = phase.phaseNo === 1;
-  const base = isPhase1 ? `${theme.solid} text-white shadow-2xl ${theme.shadow}` : `bg-white border-2 ${theme.border} text-slate-900 shadow-lg`;
-  const currentTint = isCurrent ? (isPhase1 ? `${theme.dark}` : "bg-slate-50/40") : "";
-
-  return (
-    <div className={`relative w-full max-w-[360px] rounded-[2.8rem] px-8 py-7 ${base} ${currentTint}`}>
-      <div className="absolute right-6 top-6"><PhaseMetaPill isDone={isDone} doneDays={phase.doneDays} /></div>
-      <span className={`text-[10px] font-black uppercase tracking-[0.35em] ${isPhase1 ? "text-white/70" : theme.text}`}>PHASE {phase.phaseNo}</span>
-      <p className={`mt-3 text-[28px] leading-[1.05] font-black uppercase tracking-tight ${isPhase1 ? "text-white" : "text-slate-900"}`}>{phase.title}</p>
-      <div className="mt-7 flex items-center justify-between gap-6">
-        <StatusChip status={isDone ? "complete" : isOngoing ? "ongoing" : "pending"} />
-        {isCurrent ? <CurrentPill /> : <div className="w-[110px]" />}
-      </div>
-    </div>
-  );
-};
-
-const SubPhaseCard = ({ phaseNo, step, isCurrent }) => {
-  const isDone = step.status === "complete";
-  const isOngoing = step.status === "ongoing";
-
-  return (
-    <div className={`relative flex-1 bg-white rounded-[2rem] border shadow-sm px-6 py-5 ${isCurrent ? "border-yellow-200 shadow-yellow-100 bg-yellow-50/25" : "border-slate-100"}`}>
-      <div className="flex items-center justify-between gap-4">
-        <div className="flex items-center gap-4">
-          <div className={`w-12 h-12 rounded-2xl flex items-center justify-center border-2 ${isDone ? "bg-emerald-50 text-emerald-700 border-emerald-200" : isOngoing ? "bg-yellow-50 text-yellow-800 border-yellow-200" : "bg-slate-50 text-slate-500 border-slate-100"}`}>
-            {isDone ? <CheckCircle2 size={18} /> : isOngoing ? <RefreshCw size={16} className="animate-spin" style={{ animationDuration: "2.2s" }} /> : <span className="text-[11px] font-black">{step.id.split(".")[1]}</span>}
-          </div>
-          <div>
-            <p className="text-[12px] font-black uppercase tracking-widest text-slate-900">PHASE {phaseNo}.{step.id.split(".")[1]} {step.title}</p>
-            <div className="mt-3 flex gap-8">
-              <div>
-                <p className="text-[9px] font-black uppercase tracking-widest text-slate-400 mb-0.5">Started</p>
-                <p className="text-[12px] font-bold text-slate-800">{step.started ?? "—"}</p>
-              </div>
-              <div>
-                <p className="text-[9px] font-black uppercase tracking-widest text-slate-400 mb-0.5">Completed</p>
-                {isOngoing ? (
-                  <div className="flex items-center gap-1.5">
-                    <span className="text-[11px] font-black text-yellow-600 uppercase italic animate-pulse">Ongoing</span>
-                    <span className="relative flex h-2 w-2">
-                      <span className="animate-ping absolute h-full w-full rounded-full bg-yellow-400 opacity-75"></span>
-                      <span className="relative h-2 w-2 rounded-full bg-yellow-500"></span>
-                    </span>
-                  </div>
-                ) : (
-                  <p className={`text-[12px] font-bold ${isDone ? "text-emerald-700" : "text-slate-400"}`}>{step.completed ?? "—"}</p>
-                )}
-              </div>
-            </div>
-          </div>
-        </div>
-        <StatusChip status={step.status} />
-      </div>
-      {isCurrent && (
-        <div className="mt-4 pt-4 border-t border-yellow-100 flex items-center gap-2">
-          <span className="text-[10px] font-black uppercase tracking-widest text-yellow-800">Current stage</span>
-          <span className="w-2 h-2 rounded-full bg-yellow-500 animate-pulse" />
-        </div>
-      )}
     </div>
   );
 };

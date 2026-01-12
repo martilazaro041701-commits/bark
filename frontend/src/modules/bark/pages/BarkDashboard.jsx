@@ -1,10 +1,10 @@
-import { useState } from 'react';
-import { Plus, Search, Bell, Filter } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { Plus, Search, Bell, Filter, ChevronLeft, ChevronRight, User, Car, GripVertical, MoreVertical, Clock } from 'lucide-react';
 import BarkSidebar from '@/modules/bark/components/BarkSidebar';
 import JobCard from '@/modules/bark/components/JobCard';
 import NewCustomerModal from '@/modules/bark/components/NewCustomerModal';
 import JobDetailModal from '@/modules/bark/components/JobDetailModal';
-import BayScheduler from '@/modules/bark/components/BayScheduler';
+
 
 // --- MOCK DATA ---
 const JOBS = [
@@ -13,18 +13,13 @@ const JOBS = [
   { id: 3, customerName: 'Covy Lazaro', jobType: 'Covy Rear and Front Bumper Repair', phase: 'PHASE 3.1 Installation & Repairs', phaseTime: '22d', status: 'Active', startDate: 'December 15, 2025', insurance: 'Prudential Guarantee', priority: 'High', plate: 'XYZ-999', car: 'Bumper Repair' },
 ];
 
+const BAYS = Array.from({ length: 14 }, (_, i) => ({ id: i + 1, name: `Bay ${i + 1}` }));
+const DAYS_TO_SHOW = 14;
+
 const BarkDashboard = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedJob, setSelectedJob] = useState(null);
   const [currentView, setCurrentView] = useState('dashboard');
-  const schedulerJobs = JOBS.map((job) => ({
-    id: job.id,
-    customerName: job.customerName,
-    carModel: job.car,
-    plateNumber: job.plate,
-    repairType: job.jobType,
-    status: job.status,
-  }));
 
   return (
     <div className="flex h-screen bg-[#F9FAFB] overflow-hidden">
@@ -94,13 +89,156 @@ const BarkDashboard = () => {
             </section>
           </div>
         ) : (
-          <BayScheduler jobs={schedulerJobs} />
+          <BaySchedulerView jobs={JOBS} />
         )}
       </main>
 
       {/* MODALS */}
       <NewCustomerModal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} />
       <JobDetailModal isOpen={!!selectedJob} onClose={() => setSelectedJob(null)} job={selectedJob} />
+    </div>
+  );
+};
+
+/**
+ * FIXED: BaySchedulerView - Prevented concurrent rendering errors
+ */
+const BaySchedulerView = ({ jobs }) => {
+  // Use lazy initializer for state to prevent reset on every render
+  const [waitingList, setWaitingList] = useState(() => jobs.filter(j => j.status === 'Waiting' || j.id === 1));
+  const [assignments, setAssignments] = useState([]);
+  const [draggedItem, setDraggedItem] = useState(null);
+  const [isResizing, setIsResizing] = useState(false);
+  const [resizeTarget, setResizeTarget] = useState(null);
+
+  const dates = Array.from({ length: DAYS_TO_SHOW }, (_, i) => {
+    const d = new Date();
+    d.setDate(d.getDate() + i);
+    return { full: d, dayName: d.toLocaleDateString('en-US', { weekday: 'short' }), dayNum: d.getDate() };
+  });
+
+  const handleDragStart = (e, item) => { 
+    setDraggedItem(item); 
+    e.dataTransfer.effectAllowed = "move"; 
+  };
+
+  const handleDrop = (e, bayId, dayIndex) => {
+    e.preventDefault();
+    if (!draggedItem) return;
+    
+    const newAssignment = { 
+      ...draggedItem, 
+      id: `asgn-${Date.now()}`, 
+      bayId, 
+      startDayIndex: dayIndex, 
+      duration: 2, 
+      color: 'bg-[#8B5CF6] text-white shadow-lg shadow-indigo-100' 
+    };
+
+    setAssignments(prev => [...prev, newAssignment]);
+    setWaitingList(prev => prev.filter(i => i.id !== draggedItem.id));
+    setDraggedItem(null);
+  };
+
+  const handleResizeStart = (e, id, duration) => {
+    e.stopPropagation();
+    setIsResizing(true);
+    setResizeTarget({ id, originalDuration: duration, startX: e.clientX });
+  };
+
+  useEffect(() => {
+    const handleMove = (e) => {
+      if (!isResizing || !resizeTarget) return;
+      const diff = e.clientX - resizeTarget.startX;
+      // 120 is the pixel width of one day column
+      const newDuration = Math.max(1, resizeTarget.originalDuration + Math.round(diff / 120));
+      setAssignments(prev => prev.map(a => a.id === resizeTarget.id ? { ...a, duration: newDuration } : a));
+    };
+    
+    const handleUp = () => { 
+      setIsResizing(false); 
+      setResizeTarget(null); 
+    };
+
+    if (isResizing) {
+      window.addEventListener('mousemove', handleMove);
+      window.addEventListener('mouseup', handleUp);
+    }
+    return () => { 
+      window.removeEventListener('mousemove', handleMove); 
+      window.removeEventListener('mouseup', handleUp); 
+    };
+  }, [isResizing, resizeTarget]);
+
+  return (
+    <div className="flex-1 flex overflow-hidden bg-[#FFFBF5] animate-in fade-in duration-300">
+      <div className="flex-1 flex flex-col overflow-hidden">
+        <div className="h-20 px-10 flex items-center justify-between border-b border-stone-200 bg-white/50">
+          <h2 className="text-xl font-black text-slate-900 uppercase tracking-tight">Shop Bay Schedule</h2>
+          <div className="flex gap-2">
+            <button className="p-2 border rounded-xl bg-white hover:bg-stone-50"><ChevronLeft size={18}/></button>
+            <button className="p-2 border rounded-xl bg-white hover:bg-stone-50"><ChevronRight size={18}/></button>
+          </div>
+        </div>
+        <div className="flex-1 overflow-auto">
+          <div className="min-w-max">
+            {/* Header Dates */}
+            <div className="flex sticky top-0 z-20 bg-[#FFFBF5] border-b border-stone-200">
+              <div className="w-28 shrink-0 border-r bg-[#FFFBF5] h-14" />
+              {dates.map((d, i) => (
+                <div key={i} className="w-[120px] shrink-0 text-center py-3 border-r border-stone-100">
+                  <div className="text-[9px] font-black text-stone-400 uppercase tracking-widest">{d.dayName}</div>
+                  <div className="text-lg font-black text-slate-800">{d.dayNum}</div>
+                </div>
+              ))}
+            </div>
+            {/* Bay Rows */}
+            {BAYS.map(bay => (
+              <div key={bay.id} className="flex h-24 border-b border-stone-100 relative group">
+                <div className="w-28 shrink-0 sticky left-0 z-10 bg-white border-r flex items-center justify-center font-black text-[10px] text-slate-400 uppercase group-hover:bg-slate-50 transition-colors">{bay.name}</div>
+                <div className="flex">
+                  {dates.map((_, i) => (
+                    <div 
+                      key={i} 
+                      onDragOver={(e)=>e.preventDefault()} 
+                      onDrop={(e)=>handleDrop(e, bay.id, i)} 
+                      className="w-[120px] shrink-0 border-r border-stone-50 h-full hover:bg-indigo-50/20" 
+                    />
+                  ))}
+                  {assignments.filter(a => a.bayId === bay.id).map(asgn => (
+                    <div 
+                      key={asgn.id} 
+                      className={`absolute top-2 bottom-2 rounded-2xl p-4 shadow-xl z-10 cursor-move border-l-[6px] border-white/30 flex flex-col justify-center ${asgn.color}`} 
+                      style={{ left: `${asgn.startDayIndex * 120 + 116}px`, width: `${asgn.duration * 120 - 8}px` }}
+                    >
+                      <p className="text-[9px] font-black opacity-60 uppercase tracking-widest">{asgn.plate}</p>
+                      <p className="text-xs font-black truncate">{asgn.customerName}</p>
+                      {/* Resize Handle */}
+                      <div 
+                        onMouseDown={(e) => handleResizeStart(e, asgn.id, asgn.duration)} 
+                        className="absolute right-0 top-0 bottom-0 w-4 cursor-col-resize hover:bg-black/10 rounded-r-2xl" 
+                      />
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+      {/* Waiting List Sidebar */}
+      <div className="w-80 bg-white border-l border-stone-200 flex flex-col shrink-0 shadow-2xl">
+        <div className="p-8 border-b border-stone-100"><h3 className="text-[10px] font-black uppercase text-slate-400 tracking-[0.2em]">Vehicle Queue</h3></div>
+        <div className="flex-1 overflow-y-auto p-6 space-y-4 bg-stone-50/20">
+          {waitingList.map(job => (
+            <div key={job.id} draggable onDragStart={(e)=>handleDragStart(e, job)} className="bg-white p-5 rounded-[2rem] border border-stone-100 shadow-sm cursor-grab active:cursor-grabbing hover:border-indigo-400 hover:shadow-lg transition-all">
+              <div className="flex justify-between items-start mb-3"><GripVertical size={16} className="text-slate-200"/><span className="text-[8px] font-black text-indigo-600 bg-indigo-50 px-2 py-1 rounded-lg">WAITING</span></div>
+              <p className="text-sm font-black text-slate-900 leading-none">{job.customerName}</p>
+              <p className="text-[10px] font-bold text-slate-400 mt-2 uppercase">{job.car}</p>
+            </div>
+          ))}
+        </div>
+      </div>
     </div>
   );
 };

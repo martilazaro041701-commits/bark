@@ -1,190 +1,160 @@
-import { useMemo, useState } from 'react';
-import { CheckCircle2, GripVertical } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { ChevronLeft, ChevronRight, GripVertical, Calendar as CalIcon, CheckCircle2 } from 'lucide-react';
 
-const BAY_COUNT = 14;
-const BAYS = Array.from({ length: BAY_COUNT }, (_, i) => ({ id: i + 1, name: `Bay ${i + 1}` }));
+const BAYS = Array.from({ length: 14 }, (_, i) => ({ id: i + 1, name: `Bay ${i + 1}` }));
+const DAYS_TO_SHOW = 14;
 
 const BayScheduler = ({ jobs = [] }) => {
-  const [waitingList, setWaitingList] = useState(() =>
-    jobs.map((job) => ({
-      ...job,
-      status: job.status === 'Completed' ? 'completed' : 'waiting',
-    }))
-  );
-  const [assignments, setAssignments] = useState(() => ({}));
+  const [waitingList, setWaitingList] = useState(() => jobs.filter(j => j.status === 'Waiting'));
+  const [assignments, setAssignments] = useState([]);
+  const [draggedItem, setDraggedItem] = useState(null);
+  const [dragSource, setDragSource] = useState(null);
 
-  const monthLabel = useMemo(
-    () => new Date().toLocaleDateString('en-US', { month: 'long', year: 'numeric' }),
-    []
-  );
+  // Month Display
+  const currentMonth = new Date().toLocaleString('default', { month: 'long', year: 'numeric' });
 
-  const startDrag = (event, payload) => {
-    event.dataTransfer.setData('application/json', JSON.stringify(payload));
-    event.dataTransfer.effectAllowed = 'move';
+  // Date Generator
+  const dates = Array.from({ length: DAYS_TO_SHOW }, (_, i) => {
+    const d = new Date();
+    d.setDate(d.getDate() + i);
+    return { dayName: d.toLocaleDateString('en-US', { weekday: 'short' }), dayNum: d.getDate() };
+  });
+
+  const handleDragStart = (e, item, source) => {
+    setDraggedItem(item);
+    setDragSource(source);
+    e.dataTransfer.setData('text/plain', ''); // Necessary for some browsers
   };
 
-  const handleDropOnBay = (event, bayId) => {
-    event.preventDefault();
-    const payload = event.dataTransfer.getData('application/json');
-    if (!payload) return;
+  const handleDrop = (e, bayId, dayIndex) => {
+    e.preventDefault();
+    if (!draggedItem) return;
 
-    const { itemId, source, fromBayId } = JSON.parse(payload);
-
-    if (source === 'waiting') {
-      setWaitingList((prev) => {
-        const item = prev.find((job) => job.id === itemId);
-        if (item) {
-          setAssignments((assignmentsPrev) => ({
-            ...assignmentsPrev,
-            [bayId]: { ...item, status: 'placed' },
-          }));
-        }
-        return prev.filter((job) => job.id !== itemId);
-      });
-      return;
-    }
-
-    if (source === 'bay' && fromBayId) {
-      setAssignments((prev) => {
-        const moving = prev[fromBayId];
-        if (!moving) return prev;
-        return {
-          ...prev,
-          [fromBayId]: undefined,
-          [bayId]: { ...moving, status: moving.status === 'completed' ? 'completed' : 'placed' },
-        };
-      });
-    }
-  };
-
-  const handleDropOnWaiting = (event) => {
-    event.preventDefault();
-    const payload = event.dataTransfer.getData('application/json');
-    if (!payload) return;
-
-    const { itemId, source, fromBayId } = JSON.parse(payload);
-    if (source === 'bay' && fromBayId) {
-      setAssignments((prev) => {
-        const moving = prev[fromBayId];
-        if (!moving) return prev;
-        setWaitingList((list) => [...list, { ...moving, status: 'waiting' }]);
-        return { ...prev, [fromBayId]: undefined };
-      });
-    }
-
-    if (source === 'waiting') {
-      const item = waitingList.find((job) => job.id === itemId);
-      if (item) {
-        setWaitingList((prev) => prev.filter((job) => job.id !== itemId).concat(item));
-      }
-    }
-  };
-
-  const toggleCompleted = (bayId) => {
-    setAssignments((prev) => {
-      const item = prev[bayId];
-      if (!item) return prev;
-      const nextStatus = item.status === 'completed' ? 'placed' : 'completed';
-      return {
-        ...prev,
-        [bayId]: { ...item, status: nextStatus },
+    if (dragSource === 'grid') {
+      // MOVE EXISTING
+      setAssignments(prev => prev.map(a => 
+        a.gridId === draggedItem.gridId ? { ...a, bayId, startDayIndex: dayIndex } : a
+      ));
+    } else {
+      // ADD NEW
+      const newAsgn = { 
+        ...draggedItem, 
+        gridId: `grid-${Math.random()}`, 
+        bayId, 
+        startDayIndex: dayIndex, 
+        duration: 2, 
+        internalStatus: 'Ongoing' 
       };
-    });
+      setAssignments(prev => [...prev, newAsgn]);
+      setWaitingList(prev => prev.filter(i => i.id !== draggedItem.id));
+    }
+    setDraggedItem(null);
   };
 
-  const getCardClasses = (status) => {
-    if (status === 'completed') return 'bg-slate-200 text-slate-600 border-slate-300';
-    if (status === 'placed') return 'bg-emerald-500 text-white border-emerald-400';
-    return 'bg-amber-100 text-amber-900 border-amber-300';
+  const toggleStatus = (gridId) => {
+    setAssignments(prev => prev.map(a => 
+      a.gridId === gridId ? { ...a, internalStatus: a.internalStatus === 'Done' ? 'Ongoing' : 'Done' } : a
+    ));
   };
 
   return (
-    <div className="flex flex-1 h-full bg-slate-50 overflow-hidden">
-      <div className="flex-1 p-8 overflow-y-auto">
-        <header className="flex items-center justify-between mb-6">
+    <div className="flex flex-1 h-full overflow-hidden bg-[#FFFBF5]">
+      <div className="flex-1 flex flex-col overflow-hidden">
+        {/* HEADER */}
+        <div className="h-20 px-10 flex items-center justify-between border-b border-stone-200 bg-white">
           <div>
-            <p className="text-[10px] font-black uppercase tracking-[0.3em] text-slate-400">Shop Bay Schedule</p>
-            <h2 className="text-2xl font-black text-slate-900">{monthLabel}</h2>
+            <div className="flex items-center gap-2 text-indigo-500 font-black text-[10px] uppercase tracking-widest">
+              <CalIcon size={14} /> {currentMonth}
+            </div>
+            <h2 className="text-xl font-black text-slate-900 uppercase">Shop Schedule</h2>
           </div>
-        </header>
-
-        <section className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-          {BAYS.map((bay) => {
-            const item = assignments[bay.id];
-            return (
-              <div
-                key={bay.id}
-                className="rounded-3xl border border-dashed border-slate-200 bg-white/80 p-4 min-h-[140px] flex flex-col gap-3"
-                onDragOver={(event) => event.preventDefault()}
-                onDrop={(event) => handleDropOnBay(event, bay.id)}
-              >
-                <div className="flex items-center justify-between text-[11px] font-black uppercase tracking-widest text-slate-400">
-                  <span>{bay.name}</span>
-                  {item ? (
-                    <button
-                      type="button"
-                      onClick={() => toggleCompleted(bay.id)}
-                      className="p-1 rounded-full hover:bg-slate-100"
-                    >
-                      <CheckCircle2 size={16} className={item.status === 'completed' ? 'text-slate-500' : 'text-emerald-500'} />
-                    </button>
-                  ) : null}
-                </div>
-
-                {item ? (
-                  <div
-                    draggable
-                    onDragStart={(event) => startDrag(event, { source: 'bay', itemId: item.id, fromBayId: bay.id })}
-                    className={`rounded-2xl border p-4 shadow-sm cursor-grab active:cursor-grabbing ${getCardClasses(item.status)}`}
-                  >
-                    <div className="flex items-center justify-between mb-3">
-                      <p className="text-xs font-black uppercase tracking-widest opacity-70">{item.repairType}</p>
-                      <GripVertical size={16} />
-                    </div>
-                    <p className="text-lg font-black leading-tight">{item.customerName}</p>
-                    <p className="text-sm font-semibold opacity-80">{item.carModel}</p>
-                    <p className="text-xs font-black uppercase tracking-widest opacity-70 mt-2">{item.plateNumber}</p>
-                  </div>
-                ) : (
-                  <div className="flex-1 flex items-center justify-center text-xs text-slate-300 font-semibold">
-                    Drop job here
-                  </div>
-                )}
-              </div>
-            );
-          })}
-        </section>
-      </div>
-
-      <aside
-        className="w-80 bg-white border-l border-slate-200 p-6 flex flex-col"
-        onDragOver={(event) => event.preventDefault()}
-        onDrop={handleDropOnWaiting}
-      >
-        <div className="mb-6">
-          <p className="text-[10px] font-black uppercase tracking-[0.3em] text-slate-400">Waiting List</p>
-          <h3 className="text-xl font-black text-slate-900">Queue</h3>
         </div>
 
-        <div className="flex-1 overflow-y-auto space-y-4">
-          {waitingList.map((job) => (
-            <div
-              key={job.id}
-              draggable
-              onDragStart={(event) => startDrag(event, { source: 'waiting', itemId: job.id })}
-              className={`rounded-2xl border p-4 shadow-sm cursor-grab active:cursor-grabbing ${getCardClasses('waiting')}`}
-            >
-              <div className="flex items-center justify-between mb-3">
-                <p className="text-xs font-black uppercase tracking-widest opacity-70">{job.repairType}</p>
-                <GripVertical size={16} />
+        <div className="flex-1 overflow-auto">
+          <div className="min-w-max">
+            {/* DATE ROW */}
+            <div className="flex sticky top-0 z-20 bg-white border-b border-stone-200">
+              <div className="w-28 shrink-0 border-r h-14" />
+              {dates.map((d, i) => (
+                <div key={i} className="w-[140px] shrink-0 text-center py-3 border-r border-stone-100">
+                  <div className="text-[9px] font-black text-stone-400 uppercase">{d.dayName}</div>
+                  <div className="text-lg font-black text-slate-800">{d.dayNum}</div>
+                </div>
+              ))}
+            </div>
+
+            {/* BAYS */}
+            {BAYS.map(bay => (
+              <div key={bay.id} className="flex h-32 border-b border-stone-100 relative group">
+                <div className="w-28 shrink-0 sticky left-0 z-10 bg-white border-r border-stone-200 flex items-center justify-center font-black text-[10px] text-slate-400 uppercase group-hover:bg-slate-50 transition-colors">
+                  {bay.name}
+                </div>
+                <div className="flex">
+                  {dates.map((_, i) => (
+                    <div 
+                      key={i} 
+                      onDragOver={(e)=>e.preventDefault()} 
+                      onDrop={(e)=>handleDrop(e, bay.id, i)} 
+                      className="w-[140px] shrink-0 border-r border-stone-50 h-full hover:bg-indigo-50/20" 
+                    />
+                  ))}
+                  
+                  {assignments.filter(a => a.bayId === bay.id).map(asgn => (
+                    <div 
+                      key={asgn.gridId} 
+                      draggable
+                      onDragStart={(e) => handleDragStart(e, asgn, 'grid')}
+                      className={`absolute top-2 bottom-2 rounded-2xl p-4 z-10 cursor-move border-l-[6px] shadow-lg flex flex-col justify-between transition-all ${
+                        asgn.internalStatus === 'Done' 
+                          ? 'bg-slate-200 border-slate-500 text-slate-600' 
+                          : 'bg-emerald-500 border-white text-white'
+                      }`} 
+                      style={{ left: `${asgn.startDayIndex * 140 + 118}px`, width: `${asgn.duration * 140 - 10}px` }}
+                    >
+                      <div className="flex justify-between items-start">
+                        <span className="text-[9px] font-black uppercase opacity-70">{asgn.plate}</span>
+                        <button onClick={() => toggleStatus(asgn.gridId)}>
+                          <CheckCircle2 size={16} />
+                        </button>
+                      </div>
+                      <div>
+                        <p className="text-xs font-black truncate">{asgn.customerName}</p>
+                        <p className="text-[10px] font-bold opacity-80">{asgn.car}</p>
+                        <p className="text-[8px] font-black uppercase tracking-tighter mt-1 border-t border-white/20 pt-1">{asgn.jobType}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
               </div>
-              <p className="text-lg font-black leading-tight">{job.customerName}</p>
-              <p className="text-sm font-semibold opacity-80">{job.carModel}</p>
-              <p className="text-xs font-black uppercase tracking-widest opacity-70 mt-2">{job.plateNumber}</p>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {/* YELLOW WAITING LIST */}
+      <div className="w-80 bg-white border-l border-stone-200 flex flex-col shrink-0 shadow-xl">
+        <div className="p-8 border-b border-stone-100 bg-stone-50/50 text-[10px] font-black uppercase text-slate-400 tracking-widest">
+          Vehicle Queue
+        </div>
+        <div className="flex-1 overflow-y-auto p-6 space-y-4 bg-stone-50/10">
+          {waitingList.map(job => (
+            <div 
+              key={job.id} 
+              draggable 
+              onDragStart={(e) => handleDragStart(e, job, 'queue')} 
+              className="bg-amber-50 p-5 rounded-[2rem] border border-amber-200 shadow-sm cursor-grab hover:shadow-md transition-all"
+            >
+              <div className="flex justify-between mb-2">
+                <GripVertical size={16} className="text-amber-300" />
+                <span className="text-[8px] font-black text-amber-700 bg-amber-200/50 px-2 py-1 rounded">WAITING</span>
+              </div>
+              <p className="text-sm font-black text-slate-900">{job.customerName}</p>
+              <p className="text-[10px] font-bold text-slate-500 mt-1 uppercase">{job.car} • {job.plate}</p>
+              <p className="text-[9px] font-bold text-amber-800 mt-2 border-t border-amber-100 pt-2 uppercase">{job.jobType}</p>
             </div>
           ))}
         </div>
-      </aside>
+      </div>
     </div>
   );
 };
