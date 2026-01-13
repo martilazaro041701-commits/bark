@@ -4,13 +4,56 @@ import BarkSidebar from '@/modules/bark/components/BarkSidebar';
 import JobCard from '@/modules/bark/components/JobCard';
 import NewCustomerModal from '@/modules/bark/components/NewCustomerModal';
 import JobDetailModal from '@/modules/bark/components/JobDetailModal';
+import { SchedulingTab } from '@/modules/bark/components/SchedulingTab';
 
 
 // --- MOCK DATA ---
 const JOBS = [
-  { id: 1, customerName: 'Martin Lazaro', jobType: 'Montero Right Panel Repair', phase: 'PHASE 1.1 LOA Processing', phaseTime: '4d', status: 'Active', startDate: 'January 2, 2026', insurance: 'Malayaan Insurance', priority: 'High', plate: 'YC-2982', car: 'Montero Sport' },
-  { id: 2, customerName: 'Kristine Lazaro', jobType: 'Mirage G4 Bumper Replacement', phase: 'PHASE 2.3 Material Procurement', phaseTime: '9d', status: 'Waiting', startDate: 'December 28, 2025', insurance: 'Western Guaranty Corporation', priority: 'Normal', plate: 'ABC-123', car: 'Mirage G4' },
-  { id: 3, customerName: 'Covy Lazaro', jobType: 'Covy Rear and Front Bumper Repair', phase: 'PHASE 3.1 Installation & Repairs', phaseTime: '22d', status: 'Active', startDate: 'December 15, 2025', insurance: 'Prudential Guarantee', priority: 'High', plate: 'XYZ-999', car: 'Bumper Repair' },
+  { id: 1, customerName: 'Martin Lazaro', jobType: 'Montero Right Panel Repair', phase: 'PHASE 1.2 LOA Processing', phaseTime: '4d', status: 'Active', startDate: 'January 2, 2026', insurance: 'Malayaan Insurance', priority: 'High', plate: 'YC-2982', car: 'Montero Sport' },
+  { id: 2, customerName: 'Kristine Lazaro', jobType: 'Mirage G4 Bumper Replacement', phase: 'PHASE 2.3 Partial Parts Received', phaseTime: '9d', status: 'Waiting', startDate: 'December 28, 2025', insurance: 'Western Guaranty Corporation', priority: 'Normal', plate: 'ABC-123', car: 'Mirage G4' },
+  { id: 3, customerName: 'Covy Lazaro', jobType: 'Covy Rear and Front Bumper Repair', phase: 'PHASE 3.1 Waiting for Scheduling', phaseTime: '22d', status: 'Active', startDate: 'December 15, 2025', insurance: 'Prudential Guarantee', priority: 'High', plate: 'XYZ-999', car: 'Bumper Repair' },
+];
+
+const PHASES = [
+  {
+    id: 'PHASE 1',
+    label: 'PHASE 1 Approval Process',
+    subphases: [
+      { id: '1.1', label: 'Estimate Done' },
+      { id: '1.2', label: 'LOA Processing' },
+      { id: '1.3', label: 'LOA Revising' },
+      { id: '1.4', label: 'LOA Approved' },
+      { id: '1.5', label: 'Final Confirmation' },
+    ],
+  },
+  {
+    id: 'PHASE 2',
+    label: 'PHASE 2 Parts Acquisition',
+    subphases: [
+      { id: '2.1', label: 'Parts Available' },
+      { id: '2.2', label: 'Parts Ordered' },
+      { id: '2.3', label: 'Partial Parts Received' },
+      { id: '2.4', label: 'Parts Complete' },
+    ],
+  },
+  {
+    id: 'PHASE 3',
+    label: 'PHASE 3 Scheduling',
+    subphases: [
+      { id: '3.1', label: 'Waiting for Scheduling' },
+      { id: '3.2', label: 'Scheduled for Repair' },
+    ],
+  },
+  {
+    id: 'PHASE 4',
+    label: 'PHASE 4 Repair',
+    subphases: [
+      { id: '4.1', label: 'Ongoing Body Repair' },
+      { id: '4.2', label: 'Ongoing Body Work' },
+      { id: '4.3', label: 'Ongoing Body Paint' },
+      { id: '4.4', label: 'Final Inspection' },
+    ],
+  },
 ];
 
 const BAYS = Array.from({ length: 14 }, (_, i) => ({ id: i + 1, name: `Bay ${i + 1}` }));
@@ -20,6 +63,42 @@ const BarkDashboard = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedJob, setSelectedJob] = useState(null);
   const [currentView, setCurrentView] = useState('dashboard');
+  const [jobs, setJobs] = useState(JOBS);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [phaseFilter, setPhaseFilter] = useState('All');
+  const [subphaseFilter, setSubphaseFilter] = useState('All');
+
+  const selectedPhase = PHASES.find((p) => p.id === phaseFilter);
+  const subphaseOptions = selectedPhase ? selectedPhase.subphases : PHASES.flatMap((p) => p.subphases);
+
+  const getPhaseId = (phaseText) => {
+    const match = (phaseText || '').match(/phase\s*([1-4])/i);
+    return match ? `PHASE ${match[1]}` : null;
+  };
+
+  const getSubphaseId = (phaseText) => {
+    const match = (phaseText || '').match(/([1-4]\.[1-4])/);
+    return match ? match[1] : null;
+  };
+
+  const filteredJobs = jobs.filter((job) => {
+    const name = (job.customerName || '').toLowerCase();
+    const plate = (job.plate || '').toLowerCase();
+    const search = searchTerm.trim().toLowerCase();
+    const matchesSearch = !search || name.includes(search) || plate.includes(search);
+
+    const phaseId = getPhaseId(job.phase);
+    const subphaseId = getSubphaseId(job.phase);
+    const subphaseLabel = subphaseOptions.find((s) => s.id === subphaseFilter)?.label?.toLowerCase();
+
+    const matchesPhase = phaseFilter === 'All' || phaseId === phaseFilter;
+    const matchesSubphase =
+      subphaseFilter === 'All' ||
+      subphaseId === subphaseFilter ||
+      (subphaseLabel && (job.phase || '').toLowerCase().includes(subphaseLabel));
+
+    return matchesSearch && matchesPhase && matchesSubphase;
+  });
 
   return (
     <div className="flex h-screen bg-[#F9FAFB] overflow-hidden">
@@ -34,6 +113,8 @@ const BarkDashboard = () => {
             <input 
               type="text" 
               placeholder="Search customers, jobs..." 
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
               className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border-none rounded-xl focus:ring-2 focus:ring-indigo-500/10 text-sm"
             />
           </div>
@@ -58,9 +139,43 @@ const BarkDashboard = () => {
               </div>
 
               <div className="flex items-center gap-3">
-                <button className="flex items-center gap-2 px-4 py-2.5 bg-white border border-slate-200 text-slate-600 rounded-xl font-bold text-sm hover:bg-slate-50 transition-all">
-                  <Filter size={16} /> Filters
-                </button>
+                <div className="flex items-center gap-2">
+                  <Filter size={16} className="text-slate-400" />
+                  <select
+                    value={phaseFilter}
+                    onChange={(e) => {
+                      const nextPhase = e.target.value;
+                      setPhaseFilter(nextPhase);
+                      if (nextPhase === 'All') {
+                        setSubphaseFilter('All');
+                        return;
+                      }
+                      const validSubphase = PHASES.find((p) => p.id === nextPhase)?.subphases
+                        ?.some((s) => s.id === subphaseFilter);
+                      if (!validSubphase) setSubphaseFilter('All');
+                    }}
+                    className="px-3 py-2 bg-white border border-slate-200 text-slate-600 rounded-xl font-bold text-xs uppercase tracking-widest hover:bg-slate-50 transition-all"
+                  >
+                    <option value="All">All Phases</option>
+                    {PHASES.map((phase) => (
+                      <option key={phase.id} value={phase.id}>
+                        {phase.label}
+                      </option>
+                    ))}
+                  </select>
+                  <select
+                    value={subphaseFilter}
+                    onChange={(e) => setSubphaseFilter(e.target.value)}
+                    className="px-3 py-2 bg-white border border-slate-200 text-slate-600 rounded-xl font-bold text-xs uppercase tracking-widest hover:bg-slate-50 transition-all"
+                  >
+                    <option value="All">All Subphases</option>
+                    {subphaseOptions.map((subphase) => (
+                      <option key={subphase.id} value={subphase.id}>
+                        {subphase.id} {subphase.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
                 <button
                   type="button"
                   onClick={() => setIsModalOpen(true)}
@@ -79,23 +194,37 @@ const BarkDashboard = () => {
             </div>
 
             <h2 className="text-xl font-black text-slate-900 mb-6 flex items-center gap-2">
-              Active Jobs <span className="text-sm font-bold text-slate-400">({JOBS.length})</span>
+              Active Jobs <span className="text-sm font-bold text-slate-400">({filteredJobs.length})</span>
             </h2>
 
             <section className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-8 pb-10">
-              {JOBS.map((job) => (
+              {filteredJobs.map((job) => (
                 <JobCard key={job.id} {...job} onClick={() => setSelectedJob(job)} />
               ))}
             </section>
           </div>
         ) : (
-          <BaySchedulerView jobs={JOBS} />
+          <SchedulingTab />
         )}
       </main>
 
       {/* MODALS */}
       <NewCustomerModal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} />
-      <JobDetailModal isOpen={!!selectedJob} onClose={() => setSelectedJob(null)} job={selectedJob} />
+      <JobDetailModal
+        isOpen={!!selectedJob}
+        onClose={() => setSelectedJob(null)}
+        job={selectedJob}
+        onUpdatePhase={(jobId, nextPhase) => {
+          setJobs((prev) =>
+            prev.map((job) =>
+              job.id === jobId ? { ...job, phase: nextPhase } : job
+            )
+          );
+          setSelectedJob((prev) =>
+            prev && prev.id === jobId ? { ...prev, phase: nextPhase } : prev
+          );
+        }}
+      />
     </div>
   );
 };

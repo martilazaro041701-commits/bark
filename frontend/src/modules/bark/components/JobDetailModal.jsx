@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import {
   X,
   RefreshCw,
@@ -35,6 +35,62 @@ const PHASE_THEME = {
   5: { solid: "bg-slate-900", border: "border-slate-200", text: "text-slate-900", dot: "bg-slate-900", shadow: "shadow-slate-200", dark: "bg-black" },
   6: { solid: "bg-red-600", border: "border-red-200", text: "text-red-600", dot: "bg-red-600", shadow: "shadow-red-200", dark: "bg-red-700" },
 };
+
+const PHASE_DEFINITIONS = [
+  {
+    phaseNo: 1,
+    title: "Approval Process",
+    steps: [
+      { id: "1.1", title: "Estimate Done" },
+      { id: "1.2", title: "LOA Processing" },
+      { id: "1.3", title: "LOA Revising" },
+      { id: "1.4", title: "LOA Approved" },
+      { id: "1.5", title: "Final Confirmation" },
+    ],
+  },
+  {
+    phaseNo: 2,
+    title: "Parts Acquisition",
+    steps: [
+      { id: "2.1", title: "Parts Available" },
+      { id: "2.2", title: "Parts Ordered" },
+      { id: "2.3", title: "Partial Parts Received" },
+      { id: "2.4", title: "Parts Complete" },
+    ],
+  },
+  {
+    phaseNo: 3,
+    title: "Scheduling",
+    steps: [
+      { id: "3.1", title: "Waiting for Scheduling" },
+      { id: "3.2", title: "Scheduled for Repair" },
+    ],
+  },
+  {
+    phaseNo: 4,
+    title: "Repair",
+    steps: [
+      { id: "4.1", title: "Ongoing Body Repair" },
+      { id: "4.2", title: "Ongoing Body Work" },
+      { id: "4.3", title: "Ongoing Body Paint" },
+      { id: "4.4", title: "Final Inspection" },
+    ],
+  },
+];
+
+const parsePhaseFromLabel = (phaseLabel = "") => {
+  const stepMatch = phaseLabel.match(/([1-4]\.[1-5])/);
+  const stepId = stepMatch ? stepMatch[1] : null;
+  const phaseNo = stepId ? Number(stepId.split(".")[0]) : null;
+  return { phaseNo, stepId };
+};
+
+const formatPhaseDate = (date = new Date()) =>
+  date.toLocaleDateString("en-US", {
+    month: "short",
+    day: "2-digit",
+    year: "numeric",
+  });
 
 // --- HELPER COMPONENTS ---
 function StatusChip({ status }) {
@@ -413,8 +469,143 @@ const PartsOrderTab = ({ parts, setParts, isEditing }) => {
   );
 };
 
+// --- SCHEDULING TAB (NEW ADDITION) ---
+const SchedulingTab = ({ isEditing, scheduleStatus, setScheduleStatus }) => {
+  const [notes, setNotes] = useState([
+    { id: 1, date: "Jan 12, 10:00 AM", text: "Unit added to scheduling queue." },
+    { id: 2, date: "Jan 13, 08:30 AM", text: "Technician assigned to Bay 3." }
+  ]);
+
+  const addNote = () => {
+    const text = prompt("Enter production note:");
+    if (text) setNotes([{ id: Date.now(), date: new Date().toLocaleString(), text }, ...notes]);
+  };
+
+  const options = [
+    { id: "Scheduled", icon: <Calendar size={20} />, color: "text-blue-600", bg: "bg-blue-50", border: "border-blue-100" },
+    { id: "In Repair", icon: <RefreshCw size={20} />, color: "text-orange-600", bg: "bg-orange-50", border: "border-orange-100" },
+    { id: "Done", icon: <CheckCircle2 size={20} />, color: "text-emerald-600", bg: "bg-emerald-50", border: "border-emerald-100" }
+  ];
+
+  return (
+    <div className="animate-in fade-in slide-in-from-right-4 duration-500">
+      <div className="mb-8">
+        <h3 className="text-2xl font-black text-slate-900 uppercase tracking-tight">Production Status</h3>
+        <p className="text-[9px] font-bold text-slate-400 uppercase tracking-[0.2em] mt-1">Calendar Synchronization</p>
+      </div>
+
+      <div className="grid grid-cols-3 gap-4 mb-10">
+        {options.map((opt) => (
+          <button
+            key={opt.id}
+            disabled={!isEditing}
+            onClick={() => setScheduleStatus(opt.id)}
+            className={`flex flex-col items-center p-8 rounded-[2.5rem] border-2 transition-all ${
+              scheduleStatus === opt.id ? `${opt.bg} ${opt.border} ${opt.color} shadow-xl scale-105` : "bg-white border-slate-100 text-slate-300"
+            }`}
+          >
+            <div className={`mb-3 ${scheduleStatus === opt.id && opt.id === "In Repair" ? "animate-spin" : ""}`}>{opt.icon}</div>
+            <span className="text-[10px] font-black uppercase tracking-widest">{opt.id}</span>
+          </button>
+        ))}
+      </div>
+
+      <div className="bg-slate-50/50 rounded-[2.5rem] border border-slate-100 p-8">
+        <div className="flex justify-between items-center mb-6">
+          <h4 className="text-[10px] font-black text-slate-900 uppercase tracking-widest">Production Notes</h4>
+          {isEditing && (
+            <button onClick={addNote} className="px-4 py-2 bg-white border border-slate-200 rounded-xl text-[9px] font-black uppercase hover:bg-slate-100">
+                + Add Note
+            </button>
+          )}
+        </div>
+        <div className="space-y-3">
+          {notes.map(n => (
+            <div key={n.id} className="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm">
+              <span className="text-[8px] font-black text-blue-600 uppercase block mb-1">{n.date}</span>
+              <p className="text-[11px] font-bold text-slate-700 uppercase">{n.text}</p>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+};
+
+/* -------------------- BILLING TAB (ADDED) -------------------- */
+const BillingTab = ({ isEditing, billingStatus, setBillingStatus, scheduleStatus }) => {
+  return (
+    <div className="animate-in fade-in slide-in-from-right-4 duration-500">
+      <div className="mb-8">
+        <h3 className="text-2xl font-black text-slate-900 uppercase tracking-tight">Billing</h3>
+        <p className="text-[9px] font-bold text-slate-400 uppercase tracking-[0.2em] mt-1">Receivables & Payment Status</p>
+      </div>
+
+      <div className="bg-white border border-slate-100 rounded-[2.5rem] p-8 shadow-sm max-w-xl">
+        {/* --- BILLING & OVERDUE ALERT --- */}
+        <div className="pt-2 border-t border-slate-100">
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-[8px] font-black text-slate-400 uppercase">Billing Status</span>
+            {/* Overdue logic: Pending + Schedule Status is "Done" */}
+            {billingStatus === "Pending" && scheduleStatus === "Done" && (
+              <div className="flex items-center gap-1 text-red-600 animate-pulse bg-red-50 px-1.5 py-0.5 rounded border border-red-100">
+                <AlertCircle size={10} strokeWidth={3} />
+                <span className="text-[8px] font-black uppercase tracking-wider">Overdue</span>
+              </div>
+            )}
+          </div>
+
+          {isEditing ? (
+            <div className="flex gap-2">
+              <button
+                onClick={() => setBillingStatus("Pending")}
+                className={`flex-1 py-1 rounded text-[9px] font-black uppercase border transition-all ${
+                  billingStatus === "Pending"
+                    ? "bg-slate-800 text-white border-slate-900"
+                    : "bg-white text-slate-300 border-slate-100 hover:border-slate-300"
+                }`}
+              >
+                Pending
+              </button>
+              <button
+                onClick={() => setBillingStatus("Paid")}
+                className={`flex-1 py-1 rounded text-[9px] font-black uppercase border transition-all ${
+                  billingStatus === "Paid"
+                    ? "bg-emerald-500 text-white border-emerald-600"
+                    : "bg-white text-slate-300 border-slate-100 hover:border-emerald-200"
+                }`}
+              >
+                Paid
+              </button>
+            </div>
+          ) : (
+            <div
+              className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-lg border w-full justify-center ${
+                billingStatus === "Paid"
+                  ? "bg-emerald-50 border-emerald-100 text-emerald-700"
+                  : "bg-slate-50 border-slate-100 text-slate-500"
+              }`}
+            >
+              <div className={`w-1.5 h-1.5 rounded-full ${billingStatus === "Paid" ? "bg-emerald-500" : "bg-slate-400"}`} />
+              <span className="text-[10px] font-black uppercase tracking-widest">{billingStatus}</span>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+};
+
 // --- PROCESS TREE COMPONENTS ---
-const ProcessTree = ({ onAddNote, currentPhaseNo, currentStepId, isEditing, phases }) => {
+const ProcessTree = ({
+  onAddNote,
+  currentPhaseNo,
+  currentStepId,
+  isEditing,
+  phases,
+  onStartPhase,
+  onCompleteSubphase,
+}) => {
   const [expanded, setExpanded] = useState({ 1: false, 2: true });
   const togglePhase = (phaseNo) => setExpanded((p) => ({ ...p, [phaseNo]: !p[phaseNo] }));
 
@@ -435,6 +626,18 @@ const ProcessTree = ({ onAddNote, currentPhaseNo, currentStepId, isEditing, phas
                 <div className="pt-3 space-y-3">
                   <SubtleTabButton icon={<StickyNote size={16} strokeWidth={2.5} />} label="Add Note" onClick={onAddNote} />
                   <SubtleTabButton icon={expanded[phase.phaseNo] ? <ChevronUp size={16} /> : <ChevronDown size={16} />} label={expanded[phase.phaseNo] ? "Hide" : "View"} onClick={() => togglePhase(phase.phaseNo)} />
+                  {phase.status === "pending" && (
+                    <button
+                      type="button"
+                      onClick={() => onStartPhase?.(phase.phaseNo)}
+                      className="inline-flex items-center gap-3 h-11 px-4 rounded-2xl border border-emerald-100 bg-emerald-50/70 text-emerald-800 hover:bg-emerald-50 shadow-sm hover:shadow-md transition-all"
+                    >
+                      <span className="w-9 h-9 rounded-2xl bg-white border border-emerald-100 flex items-center justify-center text-emerald-700">
+                        <Plus size={16} />
+                      </span>
+                      <span className="text-[10px] font-black uppercase tracking-[0.25em]">Start Phase</span>
+                    </button>
+                  )}
                 </div>
               </div>
 
@@ -444,7 +647,12 @@ const ProcessTree = ({ onAddNote, currentPhaseNo, currentStepId, isEditing, phas
                       <div className="relative w-10 shrink-0">
                         <div className="absolute left-[18px] top-1/2 -translate-y-1/2 w-2 h-2 rounded-full bg-slate-200" />
                       </div>
-                      <SubPhaseCard phaseNo={phase.phaseNo} step={s} isCurrent={isCurrentPhase && s.id === currentStepId} />
+                      <SubPhaseCard
+                        phaseNo={phase.phaseNo}
+                        step={s}
+                        isCurrent={isCurrentPhase && s.id === currentStepId}
+                        onComplete={() => onCompleteSubphase?.(s.id)}
+                      />
                     </div>
                 ))}
                 
@@ -480,11 +688,19 @@ const PhaseCard = ({ phase, theme, isCurrent }) => {
         <StatusChip status={isDone ? "complete" : phase.status === "ongoing" ? "ongoing" : "pending"} />
         {isCurrent && <CurrentPill />}
       </div>
+      <div className="mt-6">
+        <p className={`text-[9px] font-black uppercase tracking-[0.25em] ${isPhase1 ? "text-white/70" : "text-slate-400"}`}>Phase Notes</p>
+        <textarea
+          rows={2}
+          placeholder="Add notes..."
+          className={`mt-2 w-full rounded-xl px-3 py-2 text-[11px] font-bold ${isPhase1 ? "bg-white/15 text-white placeholder:text-white/60 border border-white/20" : "bg-slate-50 text-slate-700 placeholder:text-slate-400 border border-slate-100"}`}
+        />
+      </div>
     </div>
   );
 };
 
-const SubPhaseCard = ({ phaseNo, step, isCurrent }) => {
+const SubPhaseCard = ({ phaseNo, step, isCurrent, onComplete }) => {
   const isDone = step.status === "complete";
   const isOngoing = step.status === "ongoing";
 
@@ -507,56 +723,168 @@ const SubPhaseCard = ({ phaseNo, step, isCurrent }) => {
                 <p className="text-[12px] font-bold text-slate-800">{step.completed ?? "—"}</p>
               </div>
             </div>
+            <div className="mt-4">
+              <p className="text-[9px] font-black uppercase tracking-widest text-slate-400 mb-1">Subphase Notes</p>
+              <textarea
+                rows={2}
+                placeholder="Add notes..."
+                className="w-full rounded-xl bg-slate-50 border border-slate-100 px-3 py-2 text-[11px] font-bold text-slate-700 placeholder:text-slate-400"
+              />
+            </div>
           </div>
         </div>
-
-        {step.note && (
-          <div className="relative">
-            <div className="p-2 text-slate-300 group-hover:text-blue-500 transition-colors cursor-help">
-              <StickyNote size={18} />
+        <div className="flex items-center gap-3">
+          {step.note && (
+            <div className="relative">
+              <div className="p-2 text-slate-300 group-hover:text-blue-500 transition-colors cursor-help">
+                <StickyNote size={18} />
+              </div>
+              <div className="absolute right-0 bottom-full mb-3 w-48 p-3 bg-slate-900 text-white text-[10px] font-bold leading-relaxed rounded-xl opacity-0 group-hover:opacity-100 pointer-events-none transition-all duration-200 shadow-2xl z-50 transform translate-y-2 group-hover:translate-y-0">
+                {step.note}
+                <div className="absolute top-full right-3 border-8 border-transparent border-t-slate-900" />
+              </div>
             </div>
-            <div className="absolute right-0 bottom-full mb-3 w-48 p-3 bg-slate-900 text-white text-[10px] font-bold leading-relaxed rounded-xl opacity-0 group-hover:opacity-100 pointer-events-none transition-all duration-200 shadow-2xl z-50 transform translate-y-2 group-hover:translate-y-0">
-              {step.note}
-              <div className="absolute top-full right-3 border-8 border-transparent border-t-slate-900" />
-            </div>
-          </div>
-        )}
+          )}
+          <button
+            type="button"
+            onClick={onComplete}
+            className={`p-2 rounded-xl border transition-colors ${isDone ? "bg-emerald-50 border-emerald-100 text-emerald-600" : "bg-white border-slate-200 text-slate-400 hover:text-emerald-600 hover:border-emerald-200"}`}
+            title="Mark complete"
+          >
+            <Check size={16} />
+          </button>
+        </div>
       </div>
     </div>
   );
 };
 
 // --- MAIN MODAL COMPONENT ---
-const JobDetailModal = ({ isOpen, onClose, job }) => {
+export default function JobDetailModal({ isOpen, onClose, job, onUpdatePhase }) {
   const [activeTab, setActiveTab] = useState("Overview");
   const [isEditing, setIsEditing] = useState(false);
   const [approvedCost, setApprovedCost] = useState("0");
   const [policies, setPolicies] = useState(["PN-88219-B"]);
+  const [scheduleStatus, setScheduleStatus] = useState("In Repair"); // Added Schedule State
+
+  /* --------- BILLING STATE (ADDED) --------- */
+  const [billingStatus, setBillingStatus] = useState("Pending");
+
   const [parts, setParts] = useState([
     { id: 1, partNo: "MS-2024-FR-01", description: "Front Bumper Assembly", status: "Delivered", date: "Jan 10" },
     { id: 2, partNo: "MS-2024-HL-02", description: "Right LED Headlight", status: "Ordered", date: "Jan 11" },
     { id: 3, partNo: "MH-2000-456", description: "Windshield", status: "Ordered", date: "Jan 12" }
   ]);
+
+  const [phaseDatesByJob, setPhaseDatesByJob] = useState({});
   
-  const phases = useMemo(() => [
-    {
-      phaseNo: 1, title: "Approval Process", status: "complete", doneDays: "4D",
-      steps: [
-        { id: "1.1", title: "Estimate Done", status: "complete", started: "Jan 01, 2026", completed: "Jan 01, 2026", note: "Estimate confirmed by insurer." },
-        { id: "1.2", title: "LOA Processing", status: "complete", started: "Jan 02, 2026", completed: "Jan 04, 2026", note: "Customer requested express body paint." },
-        { id: "1.3", title: "LOA Revising", status: "complete", started: "Jan 04, 2026", completed: "Jan 05, 2026" },
-        { id: "1.4", title: "LOA Approved", status: "complete", started: "Jan 05, 2026", completed: "Jan 05, 2026" },
-        { id: "1.5", title: "Final Confirmation", status: "complete", started: "Jan 06, 2026", completed: "Jan 06, 2026" },
-      ],
-    },
-    {
-      phaseNo: 2, title: "Material Procurement", status: "ongoing",
-      steps: [
-        { id: "2.1", title: "Parts Inventory Audit", status: "ongoing", started: "Jan 08, 2026", note: "Headlight assembly backordered." },
-        { id: "2.2", title: "Parts Ordered", status: "pending" },
-      ],
-    },
-  ], []);
+  const { phaseNo: currentPhaseNo, stepId: currentStepId } = useMemo(
+    () => parsePhaseFromLabel(job?.phase),
+    [job]
+  );
+
+  useEffect(() => {
+    if (!job?.id) return;
+    setPhaseDatesByJob((prev) => prev[job.id] ? prev : { ...prev, [job.id]: {} });
+  }, [job?.id]);
+
+  const phaseDates = job?.id ? phaseDatesByJob[job.id] || {} : {};
+  const updatePhaseDates = (updater) => {
+    if (!job?.id) return;
+    setPhaseDatesByJob((prev) => ({
+      ...prev,
+      [job.id]: updater(prev[job.id] || {}),
+    }));
+  };
+
+  useEffect(() => {
+    if (!job?.id || !currentStepId) return;
+    if (phaseDates[currentStepId]?.started) return;
+    updatePhaseDates((prev) => ({
+      ...prev,
+      [currentStepId]: {
+        ...prev[currentStepId],
+        started: formatPhaseDate(),
+      },
+    }));
+  }, [job?.id, currentStepId, phaseDates]);
+
+  const phases = useMemo(() => {
+    return PHASE_DEFINITIONS.map((phase) => {
+      const steps = phase.steps.map((step) => {
+        const dates = phaseDates[step.id] || {};
+        let status = "pending";
+        if (dates.completed) status = "complete";
+        else if (dates.started) status = "ongoing";
+        else if (step.id === currentStepId) status = "ongoing";
+        return {
+          ...step,
+          status,
+          started: dates.started,
+          completed: dates.completed,
+        };
+      });
+
+      const hasStarted = steps.some((step) => step.status !== "pending");
+      const allComplete = steps.every((step) => step.status === "complete");
+      const phaseStatus = allComplete ? "complete" : hasStarted ? "ongoing" : "pending";
+
+      return {
+        ...phase,
+        status: phaseStatus,
+        doneDays: phaseStatus === "complete" ? "—" : "",
+        steps,
+      };
+    });
+  }, [currentPhaseNo, currentStepId, phaseDates]);
+
+  const handleStartPhase = (phaseNo) => {
+    const phase = PHASE_DEFINITIONS.find((p) => p.phaseNo === phaseNo);
+    const step = phase?.steps?.[0];
+    if (!step || !job) return;
+    updatePhaseDates((prev) => ({
+      ...prev,
+      [step.id]: {
+        ...prev[step.id],
+        started: prev[step.id]?.started || formatPhaseDate(),
+      },
+    }));
+    onUpdatePhase?.(job.id, `PHASE ${step.id} ${step.title}`);
+  };
+
+  const handleCompleteSubphase = (stepId) => {
+    if (!job || !stepId) return;
+    const phaseIndex = PHASE_DEFINITIONS.findIndex((phase) =>
+      phase.steps.some((step) => step.id === stepId)
+    );
+    if (phaseIndex === -1) return;
+    const phase = PHASE_DEFINITIONS[phaseIndex];
+    const stepIndex = phase.steps.findIndex((step) => step.id === stepId);
+    const nextStep =
+      phase.steps[stepIndex + 1] ||
+      PHASE_DEFINITIONS[phaseIndex + 1]?.steps?.[0];
+
+    updatePhaseDates((prev) => ({
+      ...prev,
+      [stepId]: {
+        ...prev[stepId],
+        started: prev[stepId]?.started || formatPhaseDate(),
+        completed: formatPhaseDate(),
+      },
+      ...(nextStep
+        ? {
+            [nextStep.id]: {
+              ...prev[nextStep.id],
+              started: prev[nextStep.id]?.started || formatPhaseDate(),
+            },
+          }
+        : {}),
+    }));
+
+    if (stepId === currentStepId && nextStep) {
+      onUpdatePhase?.(job.id, `PHASE ${nextStep.id} ${nextStep.title}`);
+    }
+  };
 
   if (!isOpen || !job) return null;
 
@@ -609,7 +937,7 @@ const JobDetailModal = ({ isOpen, onClose, job }) => {
           </div>
 
           <div className="px-12 flex gap-4 shrink-0">
-            {["Overview", "Approval Process", "Parts Order", "Scheduling", "Repair", "Billing"].map((t) => (
+            {["Overview", "Approval Process", "Parts Order", "Scheduling and Repair", "Billing"].map((t) => (
               <button key={t} onClick={() => setActiveTab(t)} className={`px-8 py-4 rounded-t-2xl text-[11px] font-black uppercase tracking-widest transition-all ${activeTab === t ? "bg-slate-900 text-white" : "bg-slate-50 text-slate-400 hover:bg-slate-100"}`}>{t}</button>
             ))}
           </div>
@@ -617,29 +945,49 @@ const JobDetailModal = ({ isOpen, onClose, job }) => {
           <div className="flex-1 overflow-hidden flex bg-white border-t border-slate-100">
             <div className="w-1/2 border-r border-slate-50 p-10 overflow-y-auto overflow-x-visible bg-slate-50/20">
               <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.3em] mb-12">Process Dynamics</h4>
-              <ProcessTree onAddNote={() => {}} currentPhaseNo={2} currentStepId="2.1" isEditing={isEditing} phases={phases} />
+              <ProcessTree 
+                onAddNote={() => {}} 
+                currentPhaseNo={currentPhaseNo} 
+                currentStepId={currentStepId} 
+                isEditing={isEditing} 
+                phases={phases} 
+                onStartPhase={handleStartPhase}
+                onCompleteSubphase={handleCompleteSubphase}
+              />
             </div>
-
-            <div className="flex-1 p-12 overflow-y-auto">
-              {activeTab === "Overview" ? (
-                <OverviewTab 
-                  job={job} isEditing={isEditing} approvedCost={approvedCost} 
-                  setApprovedCost={setApprovedCost} isPhase14Complete={true}
-                  policies={policies} setPolicies={setPolicies}
+            
+            <div className="flex-1 p-10 overflow-y-auto">
+              {activeTab === "Overview" && (
+                <OverviewTab
+                  job={job}
+                  isEditing={isEditing}
+                  approvedCost={approvedCost}
+                  setApprovedCost={setApprovedCost}
+                  isPhase14Complete={true}
+                  policies={policies}
+                  setPolicies={setPolicies}
                 />
-              ) : activeTab === "Approval Process" ? (
-                <ApprovalTab 
-                  policies={policies} approvedCost={approvedCost} phases={phases}
+              )}
+              
+              {activeTab === "Approval Process" && <ApprovalTab policies={policies} approvedCost={approvedCost} phases={phases} />}
+              
+              {activeTab === "Parts Order" && <PartsOrderTab parts={parts} setParts={setParts} isEditing={isEditing} />}
+              
+              {activeTab === "Scheduling and Repair" && (
+                <SchedulingTab
+                  isEditing={isEditing}
+                  scheduleStatus={scheduleStatus}
+                  setScheduleStatus={setScheduleStatus}
                 />
-              ) : activeTab === "Parts Order" ? (
-                <PartsOrderTab 
-                  parts={parts} setParts={setParts} isEditing={isEditing}
+              )}
+              
+              {activeTab === "Billing" && (
+                <BillingTab
+                  isEditing={isEditing}
+                  billingStatus={billingStatus}
+                  setBillingStatus={setBillingStatus}
+                  scheduleStatus={scheduleStatus}
                 />
-              ) : (
-                <div className="max-w-3xl animate-in slide-in-from-right-4">
-                  <h3 className="text-4xl font-black text-slate-900 mb-6 uppercase tracking-tight">{activeTab}</h3>
-                  <p className="text-slate-500 font-medium leading-relaxed text-lg">Detailed documentation for {activeTab}.</p>
-                </div>
               )}
             </div>
           </div>
@@ -647,6 +995,4 @@ const JobDetailModal = ({ isOpen, onClose, job }) => {
       </div>
     </div>
   );
-};
-
-export default JobDetailModal;
+}
