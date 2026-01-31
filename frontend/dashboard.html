@@ -1,0 +1,382 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Modu - Body Repair Tracking</title>
+    <script>
+      tailwind = {
+        config: {
+          theme: {
+            extend: {
+              colors: {
+                ink: "#0c1420",
+                slate: "#1a2433",
+                fog: "#f3f5f7",
+                glass: "rgba(255, 255, 255, 0.65)",
+                accent: "#1f6cff",
+                accentSoft: "#cfe0ff",
+                success: "#12b981",
+                warning: "#f59e0b",
+                danger: "#ef4444",
+              },
+              boxShadow: {
+                glass: "0 18px 50px rgba(15, 23, 42, 0.12)",
+                float: "0 20px 60px rgba(15, 23, 42, 0.18)",
+              },
+            },
+          },
+        },
+      };
+    </script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body class="min-h-screen bg-fog text-slate">
+    <div class="app-shell">
+      <aside id="sidebar" class="sidebar">
+        <div class="sidebar-header">
+          <div class="brand-mark">M</div>
+          <div class="brand-text">Modu</div>
+        </div>
+        <nav class="sidebar-nav">
+          <button class="nav-item active">
+            <span class="nav-icon">◼</span>
+            <span class="nav-label">Dashboard</span>
+          </button>
+          <button class="nav-item">
+            <span class="nav-icon">▦</span>
+            <span class="nav-label">Jobs</span>
+          </button>
+          <button class="nav-item">
+            <span class="nav-icon">◴</span>
+            <span class="nav-label">Phases</span>
+          </button>
+          <button class="nav-item">
+            <span class="nav-icon">◎</span>
+            <span class="nav-label">Analytics</span>
+          </button>
+        </nav>
+        <div class="sidebar-footer">
+          <button id="sidebarToggle" class="sidebar-toggle">Expand</button>
+        </div>
+      </aside>
+
+      <main class="main">
+        <header class="topbar glass-card">
+          <div>
+            <h1 class="title">Body Repair Tracking System</h1>
+            <p class="subtitle">Apple-grade clarity across approval, repair, and release.</p>
+          </div>
+          <div class="topbar-actions">
+            <input class="search" placeholder="Search jobs, plates, customers..." />
+            <button id="newJobBtn" class="btn-primary">New Job</button>
+          </div>
+        </header>
+
+        <section class="glass-card p-6 animate-in">
+          <div class="section-header">
+            <div>
+              <h2>Performance Overview</h2>
+              <p class="subtitle">Live operations trends and throughput pacing.</p>
+            </div>
+            <div class="flex gap-3" id="rangeButtons">
+              <button class="chip" data-range="today">Today</button>
+              <button class="chip" data-range="7d">7 Days</button>
+              <button class="chip active" data-range="30d">30 Days</button>
+            </div>
+          </div>
+          <div class="grid gap-6 lg:grid-cols-[2fr_1fr]">
+            <div class="glass-subcard">
+              <div class="kpi-label">Job Trend</div>
+              <canvas id="jobTrendChart" height="140"></canvas>
+            </div>
+            <div class="glass-subcard flex flex-col justify-between">
+              <div>
+                <div class="kpi-label">Performance Snapshot</div>
+              </div>
+              <div class="kpi-grid-compact">
+                <div>
+                  <div class="kpi-label">Active Jobs</div>
+                  <div class="kpi-value" id="kpiActive">--</div>
+                </div>
+                <div>
+                  <div class="kpi-label">Avg. Cycle</div>
+                  <div class="kpi-value" id="kpiCycle">--</div>
+                </div>
+                <div>
+                  <div class="kpi-label">LOA Alerts</div>
+                  <div class="kpi-value" id="kpiAlerts">--</div>
+                </div>
+                <div>
+                  <div class="kpi-label">Revenue</div>
+                  <div class="kpi-value" id="kpiRevenue">₱0</div>
+                </div>
+              </div>
+              <div class="kpi-grid-compact">
+                <div>
+                  <div class="kpi-label">Pending Parts</div>
+                  <div class="kpi-value" id="kpiPendingParts">--</div>
+                </div>
+                <div>
+                  <div class="kpi-label">Pending LOA</div>
+                  <div class="kpi-value" id="kpiPendingLoa">--</div>
+                </div>
+                <div>
+                  <div class="kpi-label">In Repair</div>
+                  <div class="kpi-value" id="kpiInRepair">--</div>
+                </div>
+                <div>
+                  <div class="kpi-label">Billing Pending</div>
+                  <div class="kpi-value" id="kpiBillingPending">₱0</div>
+                </div>
+              </div>
+              <div class="kpi-grid-compact">
+                <div>
+                  <div class="kpi-label">LOA Efficiency</div>
+                  <div class="kpi-value" id="kpiLoaEfficiency">--</div>
+                </div>
+                <div>
+                  <div class="kpi-label">Logistics Flow</div>
+                  <div class="kpi-value" id="kpiLogisticsFlow">--</div>
+                </div>
+                <div>
+                  <div class="kpi-label">Production Speed</div>
+                  <div class="kpi-value" id="kpiProductionSpeed">--</div>
+                </div>
+                <div>
+                  <div class="kpi-label">Billing Velocity</div>
+                  <div class="kpi-value" id="kpiBillingVelocity">--</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section class="glass-card table-card animate-in">
+          <div class="section-header">
+            <h2>Active Jobs</h2>
+            <div class="table-filters">
+              <button class="chip active" data-phase="ALL">All</button>
+              <button class="chip" data-phase="APPROVAL">Approval</button>
+              <button class="chip" data-phase="PARTS">Parts</button>
+              <button class="chip" data-phase="REPAIR">Repair</button>
+              <button class="chip" data-phase="PICKUP">Pickup</button>
+              <button class="chip" data-phase="BILLING">Billing</button>
+              <button class="chip" data-phase="DISMANTLE">Dismantle</button>
+            </div>
+          </div>
+          <div class="table-scroll">
+            <div class="table dense-table">
+              <div class="table-head">
+                <span>ID</span>
+                <span>Vehicle</span>
+                <span>Customer</span>
+                <span>Insurance <button class="filter-btn" data-filter="insurance">▾</button></span>
+                <span>Phase <button class="filter-btn" data-filter="phase">▾</button></span>
+                <span>Estimate</span>
+                <span>LOA Approved</span>
+                <span>Phase Started</span>
+                <span>Total Days</span>
+              </div>
+              <div id="jobsTable" class="table-body"></div>
+            </div>
+          </div>
+          <div id="filterMenu" class="filter-menu hidden"></div>
+        </section>
+
+        <section class="table-pagination">
+          <div id="pageInfo" class="subtitle">Page 1 of 1</div>
+          <div class="pagination-controls">
+            <button id="prevPage" class="btn-secondary">Prev</button>
+            <button id="nextPage" class="btn-secondary">Next</button>
+          </div>
+        </section>
+      </main>
+    </div>
+
+    <div id="jobModal" class="modal hidden">
+      <div class="modal-card">
+        <div class="modal-header">
+          <div>
+            <h3>Create Job</h3>
+            <p class="subtitle">Capture the intake details.</p>
+          </div>
+          <button id="modalClose" class="btn-secondary">Close</button>
+        </div>
+        <form id="jobForm" class="modal-body grid-2">
+          <label class="field">
+            <span>Customer Name</span>
+            <input name="customer_name" required />
+          </label>
+          <label class="field">
+            <span>Vehicle Model</span>
+            <input name="vehicle_model" required />
+          </label>
+          <label class="field">
+            <span>Plate Number</span>
+            <input name="plate_number" required />
+          </label>
+          <label class="field">
+            <span>Insurance Company</span>
+            <input name="insurance_company" required />
+          </label>
+          <label class="field">
+            <span>Description</span>
+            <input name="description" />
+          </label>
+          <label class="field">
+            <span>Total Estimate</span>
+            <input name="total_estimate" type="number" min="0" step="0.01" value="0" />
+          </label>
+          <div class="modal-actions">
+            <button type="button" id="modalCancel" class="btn-secondary">Cancel</button>
+            <button type="submit" class="btn-primary">Create Job</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <div id="detailModal" class="modal hidden">
+      <div class="modal-card detail-modal">
+        <div class="modal-header">
+          <div>
+            <h3 id="detailTitle">Job Details</h3>
+            <p id="detailSubtitle" class="subtitle">Customer and job overview.</p>
+          </div>
+          <button id="detailClose" class="btn-secondary">Close</button>
+        </div>
+        <div class="detail-grid">
+          <div>
+            <div class="detail-section">
+              <h4>Customer</h4>
+              <div id="detailCustomer" class="detail-list"></div>
+            </div>
+            <div class="detail-section">
+              <h4>Job History</h4>
+              <div id="detailHistory" class="detail-list detail-history"></div>
+            </div>
+          </div>
+          <div>
+            <div class="detail-section">
+              <h4>Update Status</h4>
+              <label class="field">
+                <span>Status</span>
+                <select id="detailStatusSelect" required></select>
+              </label>
+            </div>
+            <div class="detail-section">
+              <h4>Financials</h4>
+              <div class="detail-list">
+                <label class="field">
+                  <span>Approved LOA</span>
+                  <input id="detailLoa" type="number" min="0" step="0.01" />
+                </label>
+                <label class="field">
+                  <span>Parts</span>
+                  <input id="detailParts" type="number" min="0" step="0.01" />
+                </label>
+                <label class="field">
+                  <span>Labor</span>
+                  <input id="detailLabor" type="number" min="0" step="0.01" />
+                </label>
+                <label class="field">
+                  <span>VAT</span>
+                  <input id="detailVat" type="number" min="0" step="0.01" />
+                </label>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="detail-actions">
+          <button id="detailSave" class="btn-primary">Save Changes</button>
+          <button id="detailCloseFooter" class="btn-secondary">Close</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="editModal" class="modal hidden">
+      <div class="modal-card">
+        <div class="modal-header">
+          <div>
+            <h3>Edit Job Info</h3>
+            <p class="subtitle">Update job description and financials.</p>
+          </div>
+          <button id="editClose" class="btn-secondary">Close</button>
+        </div>
+        <form id="editForm" class="modal-body">
+          <label class="field">
+            <span>Customer Name</span>
+            <input name="customer_name" />
+          </label>
+          <label class="field">
+            <span>Vehicle Model</span>
+            <input name="vehicle_model" />
+          </label>
+          <label class="field">
+            <span>Plate Number</span>
+            <input name="plate_number" />
+          </label>
+          <label class="field">
+            <span>Insurance Company</span>
+            <input name="insurance_company" />
+          </label>
+          <label class="field">
+            <span>Description</span>
+            <input name="description" />
+          </label>
+          <label class="field">
+            <span>Total Estimate</span>
+            <input name="total_estimate" type="number" min="0" step="0.01" />
+          </label>
+          <label class="field">
+            <span>Parts</span>
+            <input name="parts_price" type="number" min="0" step="0.01" />
+          </label>
+          <label class="field">
+            <span>Labor</span>
+            <input name="labor_cost" type="number" min="0" step="0.01" />
+          </label>
+          <label class="field">
+            <span>VAT</span>
+            <input name="vat" type="number" min="0" step="0.01" />
+          </label>
+          <label class="field">
+            <span>Total Cost</span>
+            <input name="total_cost" type="number" min="0" step="0.01" />
+          </label>
+          <div class="modal-actions">
+            <button type="button" id="editCancel" class="btn-secondary">Cancel</button>
+            <button type="submit" class="btn-primary">Save</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <div id="statusModal" class="modal hidden">
+      <div class="modal-card">
+        <div class="modal-header">
+          <div>
+            <h3>Edit Job Status</h3>
+            <p class="subtitle">Update the current phase for this job.</p>
+          </div>
+          <button id="statusClose" class="btn-secondary">Close</button>
+        </div>
+        <form id="statusForm" class="modal-body">
+          <label class="field">
+            <span>Status</span>
+            <select id="statusSelect" required></select>
+          </label>
+          <div class="modal-actions">
+            <button type="button" id="statusCancel" class="btn-secondary">Cancel</button>
+            <button type="submit" class="btn-primary">Save</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/gsap@3.12.5/dist/gsap.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+    <script src="./app.js"></script>
+  </body>
+</html>
