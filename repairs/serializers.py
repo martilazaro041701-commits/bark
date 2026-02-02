@@ -21,6 +21,7 @@ class JobSerializer(serializers.ModelSerializer):
     customer = serializers.SerializerMethodField()
     phase_started_at = serializers.SerializerMethodField()
     total_days = serializers.SerializerMethodField()
+    days_in_current_phase = serializers.SerializerMethodField()
 
     class Meta:
         model = Job
@@ -33,6 +34,7 @@ class JobSerializer(serializers.ModelSerializer):
             "total_cost",
             "phase_started_at",
             "total_days",
+            "days_in_current_phase",
             "updated_at",
             "vehicle",
             "customer",
@@ -49,8 +51,23 @@ class JobSerializer(serializers.ModelSerializer):
         first_entry = obj.status_history.order_by("timestamp").first()
         start = first_entry.timestamp if first_entry else obj.created_at
         start_date = timezone.localtime(start).date()
-        today = timezone.localtime(timezone.now()).date()
-        days = (today - start_date).days + 1
+        end_date = timezone.localtime(timezone.now()).date()
+
+        if obj.phase == JobPhase.CANCELLED:
+            return None
+
+        days = (end_date - start_date).days + 1
+        return max(days, 1)
+
+    def get_days_in_current_phase(self, obj):
+        latest = obj.status_history.order_by("-timestamp").first()
+        if not latest:
+            return 0
+        start_date = timezone.localtime(latest.timestamp).date()
+        end_date = timezone.localtime(timezone.now()).date()
+        if obj.phase == JobPhase.CANCELLED:
+            return None
+        days = (end_date - start_date).days + 1
         return max(days, 1)
 
 

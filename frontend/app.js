@@ -58,6 +58,7 @@ const PHASE_CHOICES = [
   { value: "BILLING_PAID", label: "Billing - Paid" },
   { value: "BILLING_RELEASED", label: "Billing - Released" },
   { value: "DISMANTLE_FOR_DISMANTLE", label: "Dismantle - For Dismantle" },
+  { value: "CANCELLED", label: "Cancelled" },
 ];
 
 const formatDate = (value) => {
@@ -215,7 +216,7 @@ const bindDetailClose = () => {
 
 const buildRow = (job) => {
   const row = document.createElement("div");
-  row.className = "table-row";
+  row.className = `table-row${job.phase === "CANCELLED" ? " cancelled" : ""}`;
   row.dataset.jobId = job.id;
 
   const category = phaseCategory(job.phase);
@@ -230,6 +231,7 @@ const buildRow = (job) => {
     <span>${formatCurrency(job.total_estimate || 0)}</span>
     <span>${formatCurrency(job.approved_loa_amount || 0)}</span>
     <span>${formatDate(job.phase_started_at || job.updated_at)}</span>
+    <span>${job.days_in_current_phase != null ? job.days_in_current_phase : "--"}</span>
     <span>${job.total_days != null ? job.total_days : "--"}</span>
   `;
   return row;

@@ -361,7 +361,7 @@ body {
 .table-row {
   display: grid !important;
   grid-auto-flow: column;
-  grid-template-columns: 0.6fr 1.6fr 1.4fr 1.4fr 1.2fr 1.1fr 1.1fr 1.2fr 0.9fr;
+  grid-template-columns: 0.6fr 1.6fr 1.4fr 1.4fr 1.2fr 1.1fr 1.1fr 1.2fr 1fr 0.9fr;
   column-gap: 16px;
   align-items: center;
 }
@@ -413,6 +413,10 @@ body {
 .table-row:hover {
   transform: translateY(-3px) scale(1.01);
   box-shadow: 0 18px 40px rgba(15, 23, 42, 0.12);
+}
+
+.table-row.cancelled {
+  background: rgba(239, 68, 68, 0.08);
 }
 
 .badge {

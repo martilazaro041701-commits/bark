@@ -58,6 +58,8 @@ class JobPhase(models.TextChoices):
 
     DISMANTLE_FOR_DISMANTLE = "DISMANTLE_FOR_DISMANTLE", "Dismantle - For Dismantle"
 
+    CANCELLED = "CANCELLED", "Cancelled"
+
 
 class Job(models.Model):
     vehicle = models.ForeignKey(Vehicle, on_delete=models.CASCADE, related_name="jobs")
