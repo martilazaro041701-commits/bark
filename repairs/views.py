@@ -260,9 +260,19 @@ class JobStatsAPIView(APIView):
 class AnalyticsAPIView(APIView):
     def get(self, request):
         range_param = request.query_params.get("range", "30d")
+        custom_start = request.query_params.get("start_date")
+        custom_end = request.query_params.get("end_date")
         tz = timezone.get_current_timezone()
         today = timezone.localdate()
-        if range_param == "today":
+        if range_param == "custom" and custom_start and custom_end:
+            try:
+                start_date = datetime.strptime(custom_start, "%Y-%m-%d").date()
+                end_date = datetime.strptime(custom_end, "%Y-%m-%d").date()
+            except ValueError:
+                return Response({"detail": "Invalid custom date format."}, status=400)
+            if end_date < start_date:
+                return Response({"detail": "end_date must be on or after start_date."}, status=400)
+        elif range_param == "today":
             start_date = today
             end_date = today
         elif range_param == "7d":

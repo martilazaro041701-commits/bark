@@ -151,21 +151,14 @@ const renderDetail = (job) => {
       ? `<div class="detail-row"><span>No history yet.</span></div>`
       : history
           .map((entry) => {
-            if (job.is_superuser) {
-              return `
-                <div class="detail-row history-row">
-                  <span>${badgeLabel(entry.new_phase)}</span>
-                  <input class="history-input" type="datetime-local" data-history-id="${
-                    entry.id
-                  }" data-original="${toLocalInputValue(entry.timestamp)}" value="${toLocalInputValue(
-                entry.timestamp
-              )}" />
-                </div>`;
-            }
             return `
-              <div class="detail-row">
+              <div class="detail-row history-row">
                 <span>${badgeLabel(entry.new_phase)}</span>
-                <strong>${formatDate(entry.timestamp)}</strong>
+                <input class="history-input" type="datetime-local" data-history-id="${
+                  entry.id
+                }" data-original="${toLocalInputValue(entry.timestamp)}" value="${toLocalInputValue(
+              entry.timestamp
+            )}" />
               </div>`;
           })
           .join("");
@@ -361,7 +354,7 @@ const bindSidebar = () => {
 };
 
 const bindFilters = () => {
-  document.querySelectorAll(".chip").forEach((chip) => {
+  document.querySelectorAll(".table-filters .chip").forEach((chip) => {
     chip.addEventListener("click", async () => {
       document.querySelectorAll(".chip").forEach((c) => c.classList.remove("active"));
       chip.classList.add("active");
@@ -711,22 +704,12 @@ const initChart = () => {
   });
 };
 
-document.addEventListener("DOMContentLoaded", () => {
-  bindSidebar();
-  bindDetailClose();
-  bindFilters();
-  bindSearch();
-  bindNewJob();
-  bindFilterMenus();
-  bindDetailSave();
-  bindPagination();
-  bindRangeButtons();
-  initChart();
-  hydrate();
-  animateEntrance();
-});
 const bindPagination = () => {
-  el("#prevPage").addEventListener("click", async () => {
+  const prev = el("#prevPage");
+  const next = el("#nextPage");
+  if (!prev || !next) return;
+
+  prev.addEventListener("click", async () => {
     if (state.page <= 1) return;
     state.page -= 1;
     const jobs = await fetchJobs({
@@ -740,7 +723,7 @@ const bindPagination = () => {
     updatePagination();
   });
 
-  el("#nextPage").addEventListener("click", async () => {
+  next.addEventListener("click", async () => {
     if (state.page >= state.numPages) return;
     state.page += 1;
     const jobs = await fetchJobs({
@@ -755,8 +738,9 @@ const bindPagination = () => {
   });
 };
 
-const fetchAnalytics = async (range = "30d") => {
-  const response = await fetch(`${API_BASE}/analytics/?range=${range}`);
+const fetchAnalytics = async (range = "30d", extraParams = {}) => {
+  const params = new URLSearchParams({ range, ...extraParams });
+  const response = await fetch(`${API_BASE}/analytics/?${params.toString()}`);
   if (!response.ok) {
     throw new Error("Failed to load analytics");
   }
@@ -770,28 +754,105 @@ const updateAnalytics = (data) => {
     trendChart.data.datasets[0].data = data.trendValues || [];
     trendChart.update();
   }
-  if (data.pendingParts != null) el("#kpiPendingParts").textContent = data.pendingParts;
-  if (data.pendingLoa != null) el("#kpiPendingLoa").textContent = data.pendingLoa;
-  if (data.inRepair != null) el("#kpiInRepair").textContent = data.inRepair;
+  if (data.pendingParts != null && el("#kpiPendingParts")) el("#kpiPendingParts").textContent = data.pendingParts;
+  if (data.pendingLoa != null && el("#kpiPendingLoa")) el("#kpiPendingLoa").textContent = data.pendingLoa;
+  if (data.inRepair != null && el("#kpiInRepair")) el("#kpiInRepair").textContent = data.inRepair;
   if (data.billingPendingTotal != null) {
-    el("#kpiBillingPending").textContent = formatCurrency(data.billingPendingTotal);
+    const billingEl = el("#kpiBillingPending");
+    if (billingEl) billingEl.textContent = formatCurrency(data.billingPendingTotal);
   }
   const cycle = data.cycleTimes || {};
-  el("#kpiLoaEfficiency").textContent = formatDuration(cycle.loaEfficiency);
-  el("#kpiLogisticsFlow").textContent = formatDuration(cycle.logisticsFlow);
-  el("#kpiProductionSpeed").textContent = formatDuration(cycle.productionSpeed);
-  el("#kpiBillingVelocity").textContent = formatDuration(cycle.billingVelocity);
+  if (el("#kpiLoaEfficiency")) el("#kpiLoaEfficiency").textContent = formatDuration(cycle.loaEfficiency);
+  if (el("#kpiLogisticsFlow")) el("#kpiLogisticsFlow").textContent = formatDuration(cycle.logisticsFlow);
+  if (el("#kpiProductionSpeed")) el("#kpiProductionSpeed").textContent = formatDuration(cycle.productionSpeed);
+  if (el("#kpiBillingVelocity")) el("#kpiBillingVelocity").textContent = formatDuration(cycle.billingVelocity);
 };
 
 const bindRangeButtons = () => {
   const buttons = document.querySelectorAll("#rangeButtons .chip");
+  let customControls = el("#customRangeControls");
+  let customStart = el("#customStartDate");
+  let customEnd = el("#customEndDate");
+  let applyCustom = el("#applyCustomRange");
+
+  if (!customControls) {
+    const host = el("#rangeButtons");
+    if (host) {
+      const wrapper = document.createElement("div");
+      wrapper.id = "customRangeControls";
+      wrapper.className = "hidden flex gap-2 items-center";
+      wrapper.innerHTML = `
+        <input id="customStartDate" type="date" class="search !min-w-[140px] !px-3 !py-2" />
+        <input id="customEndDate" type="date" class="search !min-w-[140px] !px-3 !py-2" />
+        <button id="applyCustomRange" class="btn-secondary">Apply</button>
+      `;
+      host.parentElement?.appendChild(wrapper);
+      customControls = wrapper;
+      customStart = wrapper.querySelector("#customStartDate");
+      customEnd = wrapper.querySelector("#customEndDate");
+      applyCustom = wrapper.querySelector("#applyCustomRange");
+    }
+  }
+
   buttons.forEach((btn) => {
     btn.addEventListener("click", async () => {
       buttons.forEach((b) => b.classList.remove("active"));
       btn.classList.add("active");
       const range = btn.dataset.range;
-      const analytics = await fetchAnalytics(range);
-      updateAnalytics(analytics);
+      if (range === "custom") {
+        if (customControls) {
+          customControls.classList.remove("hidden");
+          customControls.style.display = "flex";
+        }
+        return;
+      }
+      if (customControls) {
+        customControls.classList.add("hidden");
+        customControls.style.display = "";
+      }
+      try {
+        const analytics = await fetchAnalytics(range);
+        updateAnalytics(analytics);
+      } catch (error) {
+        alert("Failed to update analytics for selected range.");
+      }
     });
   });
+
+  applyCustom?.addEventListener("click", async () => {
+    const startDate = customStart?.value;
+    const endDate = customEnd?.value;
+    if (!startDate || !endDate) {
+      alert("Please select both start and end date.");
+      return;
+    }
+    try {
+      const analytics = await fetchAnalytics("custom", {
+        start_date: startDate,
+        end_date: endDate,
+      });
+      updateAnalytics(analytics);
+    } catch (error) {
+      alert("Failed to load custom range analytics.");
+    }
+  });
 };
+
+document.addEventListener("DOMContentLoaded", () => {
+  try {
+    bindSidebar();
+    bindDetailClose();
+    bindFilters();
+    bindSearch();
+    bindNewJob();
+    bindFilterMenus();
+    bindDetailSave();
+    bindPagination();
+    bindRangeButtons();
+    initChart();
+    hydrate();
+    animateEntrance();
+  } catch (error) {
+    console.error("Dashboard initialization error:", error);
+  }
+});

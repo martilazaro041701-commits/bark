@@ -85,6 +85,12 @@
               <button class="chip" data-range="today">Today</button>
               <button class="chip" data-range="7d">7 Days</button>
               <button class="chip active" data-range="30d">30 Days</button>
+              <button class="chip" data-range="custom">Custom</button>
+            </div>
+            <div id="customRangeControls" class="hidden flex gap-2 items-center">
+              <input id="customStartDate" type="date" class="search !min-w-[140px] !px-3 !py-2" />
+              <input id="customEndDate" type="date" class="search !min-w-[140px] !px-3 !py-2" />
+              <button id="applyCustomRange" class="btn-secondary">Apply</button>
             </div>
           </div>
           <div class="grid gap-6 lg:grid-cols-[2fr_1fr]">
@@ -378,6 +384,6 @@
 
     <script src="https://cdn.jsdelivr.net/npm/gsap@3.12.5/dist/gsap.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
-    <script src="{% static 'app.js' %}"></script>
+    <script src="{% static 'app.js' %}?v=20260129b"></script>
   </body>
 </html>

@@ -84,6 +84,12 @@
               <button class="chip" data-range="today">Today</button>
               <button class="chip" data-range="7d">7 Days</button>
               <button class="chip active" data-range="30d">30 Days</button>
+              <button class="chip" data-range="custom">Custom</button>
+            </div>
+            <div id="customRangeControls" class="hidden flex gap-2 items-center">
+              <input id="customStartDate" type="date" class="search !min-w-[140px] !px-3 !py-2" />
+              <input id="customEndDate" type="date" class="search !min-w-[140px] !px-3 !py-2" />
+              <button id="applyCustomRange" class="btn-secondary">Apply</button>
             </div>
           </div>
           <div class="grid gap-6 lg:grid-cols-[2fr_1fr]">
