@@ -349,10 +349,13 @@ const hydrate = async () => {
 
 const bindSidebar = () => {
   const sidebar = el("#sidebar");
-  el("#sidebarToggle").addEventListener("click", () => {
-    sidebar.classList.toggle("expanded");
-    el("#sidebarToggle").textContent = sidebar.classList.contains("expanded") ? "Collapse" : "Expand";
-  });
+  const sidebarToggle = el("#sidebarToggle");
+  if (sidebar && sidebarToggle) {
+    sidebarToggle.addEventListener("click", () => {
+      sidebar.classList.toggle("expanded");
+      sidebarToggle.textContent = sidebar.classList.contains("expanded") ? "Collapse" : "Expand";
+    });
+  }
 };
 
 const bindFilters = () => {

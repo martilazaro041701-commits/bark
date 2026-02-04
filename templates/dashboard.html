@@ -31,36 +31,39 @@
       };
     </script>
     <script src="https://cdn.tailwindcss.com"></script>
-    <link rel="stylesheet" href="{% static 'styles.css' %}" />
+    <link rel="stylesheet" href="{% static 'styles.css' %}?v=20260204c" />
   </head>
   <body class="min-h-screen bg-fog text-slate">
     <div class="app-shell">
-      <aside id="sidebar" class="sidebar">
-        <div class="sidebar-header">
-          <div class="brand-mark">M</div>
-          <div class="brand-text">Modus</div>
+      <aside id="sidebar" class="sidebar sidebar-fixed">
+        <div class="sidebar-profile">
+          <div class="profile-avatar">M</div>
+          <div class="profile-logout">
+            <a class="logout-btn" href="{% url 'logout' %}">Log out</a>
+          </div>
         </div>
         <nav class="sidebar-nav">
-          <button class="nav-item active">
-            <span class="nav-icon">◼</span>
-            <span class="nav-label">Dashboard</span>
+          <button class="nav-item nav-item-passive" type="button" aria-disabled="true">
+            <span class="nav-label">Charts</span>
+            <span class="nav-arrow">&gt;</span>
           </button>
-          <button class="nav-item">
-            <span class="nav-icon">▦</span>
-            <span class="nav-label">Jobs</span>
+          <button class="nav-item nav-item-passive" type="button" aria-disabled="true">
+            <span class="nav-label">Tables</span>
+            <span class="nav-arrow">&gt;</span>
           </button>
-          <button class="nav-item">
-            <span class="nav-icon">◴</span>
-            <span class="nav-label">Phases</span>
+          <button class="nav-item nav-item-passive" type="button" aria-disabled="true">
+            <span class="nav-label">Widgets</span>
+            <span class="nav-arrow">&gt;</span>
           </button>
-          <button class="nav-item">
-            <span class="nav-icon">◎</span>
-            <span class="nav-label">Analytics</span>
+          <button class="nav-item nav-item-passive" type="button" aria-disabled="true">
+            <span class="nav-label">Applications</span>
+            <span class="nav-arrow">&gt;</span>
+          </button>
+          <button class="nav-item nav-item-passive" type="button" aria-disabled="true">
+            <span class="nav-label">Data Import</span>
+            <span class="nav-arrow">&gt;</span>
           </button>
         </nav>
-        <div class="sidebar-footer">
-          <button id="sidebarToggle" class="sidebar-toggle">Expand</button>
-        </div>
       </aside>
 
       <main class="main">
@@ -385,6 +388,6 @@
 
     <script src="https://cdn.jsdelivr.net/npm/gsap@3.12.5/dist/gsap.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
-    <script src="{% static 'app.js' %}?v=20260129b"></script>
+    <script src="{% static 'app.js' %}?v=20260204c"></script>
   </body>
 </html>

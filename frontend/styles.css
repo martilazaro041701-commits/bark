@@ -1,3 +1,5 @@
+@import url("https://fonts.googleapis.com/css2?family=Quicksand:wght@300;400;500;600&display=swap");
+
 :root {
   --glass-border: rgba(255, 255, 255, 0.5);
   --shadow-soft: 0 12px 40px rgba(15, 23, 42, 0.12);
@@ -19,92 +21,115 @@ body {
 }
 
 .sidebar {
-  background: linear-gradient(180deg, #0b1220, #131c2b);
+  background: linear-gradient(180deg, #0b111b, #141a25);
   color: #d9e2f5;
-  width: 86px;
-  transition: width 0.4s ease;
+  width: 240px;
   display: flex;
   flex-direction: column;
-  padding: 24px 18px;
+  padding: 28px 22px;
   gap: 24px;
-}
-
-.sidebar.expanded {
-  width: 240px;
-}
-
-.sidebar-header {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  font-weight: 600;
-}
-
-.brand-mark {
-  background: #1f6cff;
-  color: #fff;
-  width: 38px;
-  height: 38px;
-  border-radius: 12px;
-  display: grid;
-  place-items: center;
-  font-weight: 700;
-}
-
-.brand-text {
-  opacity: 0;
-  transition: opacity 0.3s ease;
-}
-
-.sidebar.expanded .brand-text {
-  opacity: 1;
 }
 
 .sidebar-nav {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 8px;
+}
+
+.sidebar-profile {
+  position: relative;
+  width: 56px;
+  height: 56px;
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.1);
+  display: grid;
+  place-items: center;
+  margin-bottom: 24px;
+  transition: all 0.3s ease;
+}
+
+.sidebar-profile:hover {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+.profile-avatar {
+  width: 40px;
+  height: 40px;
+  border-radius: 14px;
+  background: linear-gradient(135deg, #4f8dff, #1f6cff);
+  display: grid;
+  place-items: center;
+  font-weight: 700;
+  color: #fff;
+}
+
+.profile-logout {
+  position: absolute;
+  top: 50%;
+  left: 76px;
+  opacity: 0;
+  transform: translateY(-50%) translateX(-6px);
+  pointer-events: none;
+  transition: all 0.3s ease;
+  z-index: 10;
+}
+
+.sidebar-profile:hover .profile-logout {
+  opacity: 1;
+  transform: translateY(-50%) translateX(0);
+  pointer-events: auto;
+}
+
+.logout-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 96px;
+  padding: 8px 14px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.18);
+  color: #fff;
+  font-size: 13px;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.logout-btn:hover {
+  background: rgba(255, 255, 255, 0.32);
 }
 
 .nav-item {
   display: flex;
   align-items: center;
-  gap: 14px;
+  justify-content: space-between;
   border-radius: 12px;
-  padding: 12px;
+  padding: 10px 14px;
   color: inherit;
   transition: all 0.4s ease;
+  text-align: left;
 }
 
-.nav-item.active,
+.nav-item-passive {
+  cursor: default;
+  user-select: none;
+}
+
+.nav-item-passive:hover {
+  background: rgba(255, 255, 255, 0.16);
+}
+
 .nav-item:hover {
-  background: rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.12);
 }
 
 .nav-label {
-  opacity: 0;
-  transition: opacity 0.3s ease;
+  font-size: 15px;
+  letter-spacing: 0.01em;
 }
 
-.sidebar.expanded .nav-label {
-  opacity: 1;
-}
-
-.sidebar-footer {
-  margin-top: auto;
-}
-
-.sidebar-toggle {
-  width: 100%;
-  padding: 10px 14px;
-  border-radius: 999px;
-  background: rgba(255, 255, 255, 0.08);
-  color: #fff;
-  transition: all 0.4s ease;
-}
-
-.sidebar-toggle:hover {
-  background: rgba(255, 255, 255, 0.16);
+.nav-arrow {
+  font-size: 14px;
+  opacity: 0.7;
 }
 
 .main {
@@ -797,5 +822,160 @@ body {
 
   .phase-steps {
     grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+.login-page {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 100vh;
+  background: #0b0f16;
+  width: 100%;
+  overflow: hidden;
+  font-family: "Quicksand", "SF Pro Text", "Inter", "Helvetica Neue", Arial, sans-serif;
+}
+
+.login-shell {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  width: 100%;
+  min-height: 100vh;
+  transition: opacity 0.6s ease, transform 0.6s ease;
+}
+
+.login-transition .login-shell {
+  opacity: 0;
+  transform: scale(0.98);
+}
+
+.ring {
+  position: relative;
+  width: 500px;
+  height: 500px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.ring i {
+  position: absolute;
+  inset: 0;
+  border: 2px solid #fff;
+  transition: 0.5s;
+}
+
+.ring i:nth-child(1) {
+  border-radius: 38% 62% 63% 37% / 41% 44% 56% 59%;
+  animation: animate 6s linear infinite;
+}
+
+.ring i:nth-child(2) {
+  border-radius: 41% 44% 56% 59% / 38% 62% 63% 37%;
+  animation: animate 4s linear infinite;
+}
+
+.ring i:nth-child(3) {
+  border-radius: 41% 44% 56% 59% / 38% 62% 63% 37%;
+  animation: animate2 10s linear infinite;
+}
+
+.ring:hover i {
+  border: 6px solid var(--clr);
+  filter: drop-shadow(0 0 20px var(--clr));
+}
+
+.ring.is-success i {
+  border: 6px solid #22c55e;
+  filter: drop-shadow(0 0 18px rgba(34, 197, 94, 0.8));
+}
+
+.ring.is-error i {
+  border: 6px solid #ef4444;
+  filter: drop-shadow(0 0 18px rgba(239, 68, 68, 0.8));
+}
+
+@keyframes animate {
+  0% {
+    transform: rotate(0deg);
+  }
+  100% {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes animate2 {
+  0% {
+    transform: rotate(360deg);
+  }
+  100% {
+    transform: rotate(0deg);
+  }
+}
+
+.login {
+  position: absolute;
+  width: 300px;
+  height: 100%;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.login h2 {
+  font-size: 2em;
+  color: #fff;
+  letter-spacing: 0.04em;
+}
+
+.login .inputBx {
+  position: relative;
+  width: 100%;
+}
+
+.login .inputBx input {
+  position: relative;
+  width: 100%;
+  padding: 12px 20px;
+  background: transparent;
+  border: 2px solid #fff;
+  border-radius: 40px;
+  font-size: 1.1em;
+  color: #fff;
+  box-shadow: none;
+  outline: none;
+}
+
+.login .inputBx input[type="submit"] {
+  width: 100%;
+  background: linear-gradient(45deg, #ff357a, #fff172);
+  border: none;
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.login .inputBx input::placeholder {
+  color: rgba(255, 255, 255, 0.75);
+}
+
+.login-meta {
+  color: rgba(255, 255, 255, 0.7);
+  font-size: 0.9em;
+}
+
+.login-error {
+  min-height: 20px;
+  font-size: 0.9em;
+  color: #f87171;
+  text-align: center;
+}
+
+@media (max-width: 640px) {
+  .ring {
+    width: 360px;
+    height: 360px;
   }
 }

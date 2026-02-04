@@ -5,9 +5,12 @@ from django.db import transaction
 from django.core.paginator import Paginator
 from django.db.models import Avg, Count, ExpressionWrapper, F, OuterRef, Q, Subquery, Sum
 from django.db.models.functions import TruncDate
-from django.shortcuts import get_object_or_404
+from django.contrib.auth import authenticate, login, logout
+from django.http import JsonResponse
+from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
 from django.utils.dateparse import parse_datetime
+from django.views.decorators.csrf import ensure_csrf_cookie
 from rest_framework import status
 from rest_framework.response import Response
 from rest_framework.views import APIView
@@ -206,6 +209,33 @@ class StatusHistoryUpdateAPIView(APIView):
                 "timestamp": entry.timestamp,
             }
         )
+
+
+@ensure_csrf_cookie
+def login_view(request):
+    if request.user.is_authenticated:
+        return redirect("dashboard")
+
+    if request.method == "POST":
+        username = request.POST.get("username", "").strip()
+        password = request.POST.get("password", "")
+        user = authenticate(request, username=username, password=password)
+        if user:
+            login(request, user)
+            if request.headers.get("x-requested-with") == "XMLHttpRequest":
+                return JsonResponse({"ok": True})
+            return redirect("dashboard")
+
+        if request.headers.get("x-requested-with") == "XMLHttpRequest":
+            return JsonResponse({"ok": False, "error": "Invalid username or password."}, status=401)
+        return render(request, "login.html", {"error": "Invalid username or password."})
+
+    return render(request, "login.html")
+
+
+def logout_view(request):
+    logout(request)
+    return redirect("login")
 
 
 class JobStatsAPIView(APIView):

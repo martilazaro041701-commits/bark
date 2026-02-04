@@ -1,0 +1,39 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Modu - Login</title>
+    <link rel="stylesheet" href="{% static 'login.css' %}?v=20260204b" />
+  </head>
+  <body class="login-page">
+    <main class="login-shell">
+      <div class="ring{% if error %} is-error{% endif %}" id="loginRing">
+        <i style="--clr:#00ff0a;"></i>
+        <i style="--clr:#ff0057;"></i>
+        <i style="--clr:#fffd44;"></i>
+        <div class="login">
+          <h2>Login</h2>
+          <form id="loginForm" method="post" autocomplete="on">
+            {% csrf_token %}
+            <div class="inputBx">
+              <input type="text" name="username" placeholder="Username" required />
+            </div>
+            <div class="inputBx">
+              <input type="password" name="password" placeholder="Password" required />
+            </div>
+            <div class="inputBx">
+              <input type="submit" value="Sign in" />
+            </div>
+          </form>
+          <p class="login-error" id="loginError" aria-live="polite">
+            {% if error %}{{ error }}{% endif %}
+          </p>
+        </div>
+      </div>
+    </main>
+
+    <script src="{% static 'login.js' %}?v=20260204a"></script>
+  </body>
+</html>
