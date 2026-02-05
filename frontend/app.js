@@ -70,7 +70,16 @@ const formatDate = (value) => {
 };
 
 const formatDuration = (value) => {
-  if (!value) return "--";
+  if (value === null || value === undefined || value === "") return "--";
+  const asNumber = Number(value);
+  if (!Number.isNaN(asNumber)) {
+    const hours = asNumber / 3600;
+    if (hours >= 24) {
+      const days = hours / 24;
+      return `${days.toFixed(1)} days`;
+    }
+    return `${hours.toFixed(1)} hrs`;
+  }
   if (typeof value === "string") {
     if (value.includes("day")) return value;
     if (value.includes(":")) {
@@ -321,29 +330,27 @@ const fetchStats = async () => {
 };
 
 const hydrate = async () => {
-  try {
-    const [jobs, stats, analytics] = await Promise.all([
-      fetchJobs({ page: state.page }),
-      fetchStats(),
-      fetchAnalytics(),
-    ]);
+  const [jobsRes, statsRes, analyticsRes] = await Promise.allSettled([
+    fetchJobs({ page: state.page }),
+    fetchStats(),
+    fetchAnalytics(),
+  ]);
+
+  if (jobsRes.status === "fulfilled") {
+    const jobs = jobsRes.value;
     renderJobs(jobs.results || jobs);
     state.numPages = jobs.num_pages || 1;
     updatePagination();
-    updateKPIs(stats);
-    updateAnalytics(analytics);
-  } catch (error) {
+  } else {
     renderJobs([]);
-    updateKPIs({
-      active: 0,
-      avgCycle: "--",
-      alerts: 0,
-      throughput: 0,
-      revenue: 0,
-      revenueRatio: 0,
-      trendLabels: [],
-      trendValues: [],
-    });
+  }
+
+  if (statsRes.status === "fulfilled") {
+    updateKPIs(statsRes.value);
+  }
+
+  if (analyticsRes.status === "fulfilled") {
+    updateAnalytics(analyticsRes.value);
   }
 };
 
@@ -747,7 +754,8 @@ const fetchAnalytics = async (range = "30d", extraParams = {}) => {
   const params = new URLSearchParams({ range, ...extraParams });
   const response = await fetch(`${API_BASE}/analytics/?${params.toString()}`);
   if (!response.ok) {
-    throw new Error("Failed to load analytics");
+    const detail = await response.text().catch(() => "");
+    throw new Error(detail || "Failed to load analytics");
   }
   return response.json();
 };
@@ -819,6 +827,7 @@ const bindRangeButtons = () => {
         const analytics = await fetchAnalytics(range);
         updateAnalytics(analytics);
       } catch (error) {
+        console.error("Analytics range error:", error);
         alert("Failed to update analytics for selected range.");
       }
     });
@@ -838,6 +847,7 @@ const bindRangeButtons = () => {
       });
       updateAnalytics(analytics);
     } catch (error) {
+      console.error("Custom range analytics error:", error);
       alert("Failed to load custom range analytics.");
     }
   });

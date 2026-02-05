@@ -4,7 +4,7 @@ from django.db import models
 from django.db import transaction
 from django.core.paginator import Paginator
 from django.db.models import Avg, Count, ExpressionWrapper, F, OuterRef, Q, Subquery, Sum
-from django.db.models.functions import TruncDate
+from django.db.models.functions import Coalesce, TruncDate
 from django.contrib.auth import authenticate, login, logout
 from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
@@ -357,40 +357,59 @@ class AnalyticsAPIView(APIView):
             .count()
         )
 
+        billing_pending_qs = Job.objects.filter(phase=JobPhase.BILLING_PENDING)
         billing_pending_total = (
-            Job.objects.filter(phase=JobPhase.BILLING_PENDING, updated_at__range=(start_dt, end_dt))
-            .aggregate(total=Sum("total_cost"))
-            .get("total")
-            or 0
+            billing_pending_qs.aggregate(total=Sum("approved_loa_amount")).get("total") or 0
         )
 
-        def phase_ts(phase_value):
-            return Subquery(
-                StatusHistory.objects.filter(job=OuterRef("pk"), new_phase=phase_value)
+        def avg_duration_by_phase(start_phase, end_phase):
+            start_sub = Subquery(
+                StatusHistory.objects.filter(job=OuterRef("job_id"), new_phase=start_phase)
                 .order_by("timestamp")
                 .values("timestamp")[:1]
             )
-
-        base = Job.objects.all()
-        loa_processing = phase_ts(JobPhase.APPROVAL_LOA_PROCESSING)
-        loa_approved = phase_ts(JobPhase.APPROVAL_LOA_APPROVED)
-        parts_ordered = phase_ts(JobPhase.PARTS_ORDERED)
-        parts_arrived = phase_ts(JobPhase.PARTS_ARRIVED)
-        repair_ongoing = phase_ts(JobPhase.REPAIR_ONGOING_REPAIR)
-        inspection = phase_ts(JobPhase.REPAIR_INSPECTION_TESTING)
-        billing_pending = phase_ts(JobPhase.BILLING_PENDING)
-        billing_paid = phase_ts(JobPhase.BILLING_PAID)
-
-        def avg_duration(start_field, end_field):
+            end_sub = Subquery(
+                StatusHistory.objects.filter(job=OuterRef("job_id"), new_phase=end_phase)
+                .order_by("timestamp")
+                .values("timestamp")[:1]
+            )
             qs = (
-                base.annotate(start=start_field, end=end_field)
-                .exclude(start__isnull=True, end__isnull=True)
-                .filter(start__range=(start_dt, end_dt), end__range=(start_dt, end_dt))
-                .filter(end__gte=F("start"))
+                StatusHistory.objects.filter(new_phase=end_phase, timestamp__range=(start_dt, end_dt))
+                .annotate(start_ts=start_sub, end_ts=end_sub)
+                .exclude(start_ts__isnull=True, end_ts__isnull=True)
+                .filter(end_ts__gte=F("start_ts"))
             )
             return qs.aggregate(
-                avg=Avg(ExpressionWrapper(F("end") - F("start"), output_field=models.DurationField()))
+                avg=Avg(ExpressionWrapper(F("end_ts") - F("start_ts"), output_field=models.DurationField()))
             ).get("avg")
+
+        cycle_times = {
+            "loaEfficiency": None,
+            "logisticsFlow": None,
+            "partsToRepair": None,
+            "productionSpeed": None,
+            "billingVelocity": None,
+        }
+        try:
+            cycle_times = {
+                "loaEfficiency": avg_duration_by_phase(
+                    JobPhase.APPROVAL_LOA_PROCESSING, JobPhase.APPROVAL_LOA_APPROVED
+                ),
+                "logisticsFlow": avg_duration_by_phase(
+                    JobPhase.PARTS_ORDERED, JobPhase.PARTS_ARRIVED
+                ),
+                "partsToRepair": avg_duration_by_phase(
+                    JobPhase.PARTS_ARRIVED, JobPhase.REPAIR_ONGOING_REPAIR
+                ),
+                "productionSpeed": avg_duration_by_phase(
+                    JobPhase.REPAIR_ONGOING_REPAIR, JobPhase.REPAIR_INSPECTION_TESTING
+                ),
+                "billingVelocity": avg_duration_by_phase(
+                    JobPhase.BILLING_PENDING, JobPhase.BILLING_PAID
+                ),
+            }
+        except Exception:
+            cycle_times = cycle_times
 
         analytics = {
             "trendLabels": trend_labels,
@@ -399,13 +418,7 @@ class AnalyticsAPIView(APIView):
             "pendingLoa": pending_loa,
             "inRepair": in_repair,
             "billingPendingTotal": float(billing_pending_total),
-            "cycleTimes": {
-                "loaEfficiency": avg_duration(loa_processing, loa_approved),
-                "logisticsFlow": avg_duration(parts_ordered, parts_arrived),
-                "partsToRepair": avg_duration(parts_arrived, repair_ongoing),
-                "productionSpeed": avg_duration(repair_ongoing, inspection),
-                "billingVelocity": avg_duration(billing_pending, billing_paid),
-            },
+            "cycleTimes": cycle_times,
         }
         return Response(analytics)
 
