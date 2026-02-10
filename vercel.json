@@ -1,0 +1,25 @@
+{
+  "version": 2,
+  "buildCommand": "bash build_files.sh",
+  "builds": [
+    {
+      "src": "index.py",
+      "use": "@vercel/python",
+      "config": {
+        "includeFiles": [
+          "config/**",
+          "repairs/**",
+          "templates/**",
+          "frontend/**",
+          "staticfiles/**",
+          "manage.py",
+          "build_files.sh",
+          "requirements.txt"
+        ]
+      }
+    }
+  ],
+  "routes": [
+    { "src": "/(.*)", "dest": "index.py" }
+  ]
+}

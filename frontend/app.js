@@ -15,6 +15,7 @@ const state = {
 
 const phaseCategory = (phase) => {
   if (!phase) return "approval";
+  if (phase === "BILLING_RELEASED") return "success";
   const prefix = phase.split("_")[0];
   return prefix.toLowerCase();
 };
@@ -124,6 +125,44 @@ const animateEntrance = () => {
     duration: 0.9,
     ease: "power4.out",
     stagger: 0.08,
+  });
+};
+
+const setActiveView = (viewName) => {
+  const views = document.querySelectorAll(".view");
+  views.forEach((view) => view.classList.remove("active-view"));
+
+  const target = document.getElementById(`${viewName}View`);
+  if (target) {
+    target.classList.add("active-view");
+  }
+
+  const navItems = document.querySelectorAll("[data-view]");
+  navItems.forEach((item) => {
+    if (item.getAttribute("data-view") === viewName) {
+      item.classList.add("nav-item-active");
+    } else {
+      item.classList.remove("nav-item-active");
+    }
+  });
+
+  if (viewName === "charts" || viewName === "tables") {
+    document.body.classList.add("theme-infographic");
+  } else {
+    document.body.classList.remove("theme-infographic");
+  }
+
+  window.dispatchEvent(new Event("resize"));
+  document.dispatchEvent(new Event(`view:${viewName}`));
+};
+
+const bindViewNav = () => {
+  document.querySelectorAll("[data-view]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const target = btn.getAttribute("data-view");
+      if (!target || btn.getAttribute("aria-disabled") === "true") return;
+      setActiveView(target);
+    });
   });
 };
 
@@ -855,6 +894,8 @@ const bindRangeButtons = () => {
 
 document.addEventListener("DOMContentLoaded", () => {
   try {
+    bindViewNav();
+    setActiveView("dashboard");
     bindSidebar();
     bindDetailClose();
     bindFilters();

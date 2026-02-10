@@ -1,0 +1,144 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Modu - Data Import</title>
+    <script>
+      tailwind = {
+        config: {
+          theme: {
+            extend: {
+              colors: {
+                ink: "#0c1420",
+                slate: "#1a2433",
+                fog: "#f3f5f7",
+                glass: "rgba(255, 255, 255, 0.65)",
+                accent: "#1f6cff",
+                accentSoft: "#cfe0ff",
+                success: "#12b981",
+                warning: "#f59e0b",
+                danger: "#ef4444",
+              },
+              boxShadow: {
+                glass: "0 18px 50px rgba(15, 23, 42, 0.12)",
+                float: "0 20px 60px rgba(15, 23, 42, 0.18)",
+              },
+            },
+          },
+        },
+      };
+    </script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="{% static 'styles.css' %}?v=20260204c" />
+  </head>
+  <body class="min-h-screen bg-fog text-slate">
+    <div class="app-shell">
+      <aside id="sidebar" class="sidebar sidebar-fixed">
+        <div class="sidebar-profile">
+          <div class="profile-avatar">M</div>
+          <div class="profile-logout">
+            <a class="logout-btn" href="{% url 'logout' %}">Log out</a>
+          </div>
+        </div>
+        <nav class="sidebar-nav">
+          <a class="nav-item nav-item-link" href="{% url 'charts' %}">
+            <span class="nav-label">Charts</span>
+            <span class="nav-arrow">&gt;</span>
+          </a>
+          <a class="nav-item nav-item-link" href="{% url 'tables' %}">
+            <span class="nav-label">Tables</span>
+            <span class="nav-arrow">&gt;</span>
+          </a>
+          <button class="nav-item nav-item-passive" type="button" aria-disabled="true">
+            <span class="nav-label">Widgets</span>
+            <span class="nav-arrow">&gt;</span>
+          </button>
+          <button class="nav-item nav-item-passive" type="button" aria-disabled="true">
+            <span class="nav-label">Applications</span>
+            <span class="nav-arrow">&gt;</span>
+          </button>
+          <a class="nav-item nav-item-link nav-item-active" href="{% url 'data-import' %}">
+            <span class="nav-label">Data Import</span>
+            <span class="nav-arrow">&gt;</span>
+          </a>
+        </nav>
+      </aside>
+
+      <main class="main">
+        <header class="topbar glass-card">
+          <div>
+            <h1 class="title">Data Import</h1>
+            <p class="subtitle">Bring in repair history from CSV files.</p>
+          </div>
+          <div class="topbar-actions">
+            <a href="{% url 'dashboard' %}" class="btn-secondary">Back to Dashboard</a>
+          </div>
+        </header>
+
+        <section class="glass-card p-6 animate-in">
+          <div class="section-header">
+            <div>
+              <h2>CSV Import</h2>
+              <p class="subtitle">Pick a date range and map the columns before importing.</p>
+            </div>
+          </div>
+
+          <form id="importForm" class="import-form">
+            <div class="import-row">
+              <label class="field">
+                <span>Date Range Start</span>
+                <input id="importStartDate" type="date" class="search input-date" />
+              </label>
+              <label class="field">
+                <span>Date Range End</span>
+                <input id="importEndDate" type="date" class="search input-date" />
+              </label>
+              <label class="field">
+                <span>CSV File</span>
+                <input id="importFile" type="file" accept=".csv" class="file-input" required />
+              </label>
+            </div>
+
+            <div class="import-row">
+              <div>
+                <div class="kpi-label">Show Columns</div>
+                <div class="subtitle">Select the columns to import.</div>
+              </div>
+              <div class="import-actions">
+                <button type="button" id="selectAllColumns" class="btn-secondary">Select All</button>
+                <button type="button" id="clearColumns" class="btn-secondary">Clear</button>
+              </div>
+            </div>
+
+            <div class="column-grid" id="columnGrid">
+              <label class="checkbox-chip"><input type="checkbox" value="customer_name" />Customer Name</label>
+              <label class="checkbox-chip"><input type="checkbox" value="customer_phone" />Customer Phone</label>
+              <label class="checkbox-chip"><input type="checkbox" value="customer_email" />Customer Email</label>
+              <label class="checkbox-chip"><input type="checkbox" value="customer_address" />Customer Address</label>
+              <label class="checkbox-chip"><input type="checkbox" value="vehicle_model" />Vehicle Model</label>
+              <label class="checkbox-chip"><input type="checkbox" value="plate_number" />Plate Number</label>
+              <label class="checkbox-chip"><input type="checkbox" value="insurance_company" />Insurance Company</label>
+              <label class="checkbox-chip"><input type="checkbox" value="description" />Job Description</label>
+              <label class="checkbox-chip"><input type="checkbox" value="total_estimate" />Total Estimate</label>
+              <label class="checkbox-chip"><input type="checkbox" value="approved_loa_amount" />Approved LOA Amount</label>
+              <label class="checkbox-chip"><input type="checkbox" value="parts_price" />Parts Price</label>
+              <label class="checkbox-chip"><input type="checkbox" value="labor_cost" />Labor Cost</label>
+              <label class="checkbox-chip"><input type="checkbox" value="vat" />VAT</label>
+              <label class="checkbox-chip"><input type="checkbox" value="total_cost" />Total Cost</label>
+              <label class="checkbox-chip"><input type="checkbox" value="phase" />Phase</label>
+            </div>
+
+            <div class="import-actions mt-6">
+              <button type="submit" class="btn-primary">Import CSV</button>
+              <div id="importStatus" class="subtitle"></div>
+            </div>
+          </form>
+        </section>
+      </main>
+    </div>
+
+    <script src="{% static 'data_import.js' %}?v=20260209a"></script>
+  </body>
+</html>

@@ -1,0 +1,151 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Modu - Charts</title>
+    <script>
+      tailwind = {
+        config: {
+          theme: {
+            extend: {
+              colors: {
+                ink: "#0c1420",
+                slate: "#1a2433",
+                fog: "#f3f5f7",
+                glass: "rgba(255, 255, 255, 0.65)",
+                accent: "#1f6cff",
+                accentSoft: "#cfe0ff",
+                success: "#12b981",
+                warning: "#f59e0b",
+                danger: "#ef4444",
+              },
+              boxShadow: {
+                glass: "0 18px 50px rgba(15, 23, 42, 0.12)",
+                float: "0 20px 60px rgba(15, 23, 42, 0.18)",
+              },
+            },
+          },
+        },
+      };
+    </script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="{% static 'styles.css' %}?v=20260204c" />
+  </head>
+  <body class="min-h-screen bg-fog text-slate theme-infographic">
+    <div class="app-shell">
+      <aside id="sidebar" class="sidebar sidebar-fixed">
+        <div class="sidebar-profile">
+          <div class="profile-avatar">M</div>
+          <div class="profile-logout">
+            <a class="logout-btn" href="{% url 'logout' %}">Log out</a>
+          </div>
+        </div>
+        <nav class="sidebar-nav">
+          <a class="nav-item nav-item-link nav-item-active" href="{% url 'charts' %}">
+            <span class="nav-label">Charts</span>
+            <span class="nav-arrow">&gt;</span>
+          </a>
+          <a class="nav-item nav-item-link" href="{% url 'tables' %}">
+            <span class="nav-label">Tables</span>
+            <span class="nav-arrow">&gt;</span>
+          </a>
+          <button class="nav-item nav-item-passive" type="button" aria-disabled="true">
+            <span class="nav-label">Widgets</span>
+            <span class="nav-arrow">&gt;</span>
+          </button>
+          <button class="nav-item nav-item-passive" type="button" aria-disabled="true">
+            <span class="nav-label">Applications</span>
+            <span class="nav-arrow">&gt;</span>
+          </button>
+          <a class="nav-item nav-item-link" href="{% url 'data-import' %}">
+            <span class="nav-label">Data Import</span>
+            <span class="nav-arrow">&gt;</span>
+          </a>
+        </nav>
+      </aside>
+
+      <main class="main">
+        <header class="topbar glass-card infographic-card pop-in">
+          <div>
+            <h1 class="title">Charts</h1>
+            <p class="subtitle">Operational analytics based on live repair data.</p>
+          </div>
+          <div class="topbar-actions">
+            <input id="chartSearch" class="search" placeholder="Search metrics..." />
+            <a href="{% url 'dashboard' %}" class="btn-secondary">Back to Dashboard</a>
+          </div>
+        </header>
+
+        <section class="glass-card p-6 animate-in infographic-card pop-in">
+          <div class="section-header">
+            <div>
+              <h2>Chart Options</h2>
+              <p class="subtitle">Select a metric and a date range to visualize.</p>
+            </div>
+            <div class="input-bar">
+              <select id="chartMetric" class="search input-select">
+                <option value="repairsIn">Repairs In (Daily)</option>
+                <option value="repairsOut">Repairs Out (Daily)</option>
+                <option value="estimatesMade">Estimates Made (Daily)</option>
+                <option value="insuranceDistribution">Insurance Claim Distribution</option>
+                <option value="carModelDistribution">Cars Repaired Distribution</option>
+                <option value="phaseConcentration">Job Phase Concentration</option>
+              </select>
+              <input id="chartStartDate" type="date" class="search input-date" />
+              <input id="chartEndDate" type="date" class="search input-date" />
+              <button id="chartApply" class="btn-primary">Apply</button>
+            </div>
+          </div>
+
+          <div class="grid gap-6 lg:grid-cols-[2fr_1fr]">
+            <div class="glass-subcard">
+              <div class="kpi-label" id="chartTitle">Repairs In (Daily)</div>
+              <canvas id="mainChart" height="160"></canvas>
+            </div>
+            <div class="glass-subcard flex flex-col gap-4">
+              <div>
+                <div class="kpi-label">Pending Billed</div>
+                <div class="kpi-value" id="pendingBilledValue">₱0</div>
+                <div class="subtitle" id="pendingBilledCount">0 jobs</div>
+              </div>
+              <div>
+                <div class="kpi-label">Approved LOAs</div>
+                <div class="kpi-value" id="approvedLoaValue">₱0</div>
+                <div class="subtitle" id="approvedLoaCount">0 approvals</div>
+              </div>
+              <div>
+                <div class="kpi-label">Phase Concentration</div>
+                <div id="phaseConcentrationList" class="metric-list"></div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section class="glass-card p-6 animate-in infographic-card pop-in">
+          <div class="section-header">
+            <div>
+              <h2>Distribution Highlights</h2>
+              <p class="subtitle">How claims and repairs are distributed right now.</p>
+            </div>
+          </div>
+          <div class="grid gap-6 md:grid-cols-2">
+            <div class="glass-subcard">
+              <div class="kpi-label">Insurance Claim Distribution</div>
+              <canvas id="insuranceChart" height="160"></canvas>
+            </div>
+            <div class="glass-subcard">
+              <div class="kpi-label">Cars Repaired Distribution</div>
+              <canvas id="modelChart" height="160"></canvas>
+            </div>
+          </div>
+        </section>
+      </main>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/gsap@3.12.5/dist/gsap.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+    <script src="{% static 'charts.js' %}?v=20260209a"></script>
+  </body>
+</html>

@@ -31,7 +31,7 @@
       };
     </script>
     <script src="https://cdn.tailwindcss.com"></script>
-    <link rel="stylesheet" href="{% static 'styles.css' %}?v=20260204c" />
+    <link rel="stylesheet" href="{% static 'styles.css' %}?v=20260209c" />
   </head>
   <body class="min-h-screen bg-fog text-slate">
     <div class="app-shell">
@@ -43,11 +43,11 @@
           </div>
         </div>
         <nav class="sidebar-nav">
-          <button class="nav-item nav-item-passive" type="button" aria-disabled="true">
+          <button class="nav-item nav-item-link" type="button" data-view="charts">
             <span class="nav-label">Charts</span>
             <span class="nav-arrow">&gt;</span>
           </button>
-          <button class="nav-item nav-item-passive" type="button" aria-disabled="true">
+          <button class="nav-item nav-item-link" type="button" data-view="tables">
             <span class="nav-label">Tables</span>
             <span class="nav-arrow">&gt;</span>
           </button>
@@ -59,7 +59,7 @@
             <span class="nav-label">Applications</span>
             <span class="nav-arrow">&gt;</span>
           </button>
-          <button class="nav-item nav-item-passive" type="button" aria-disabled="true">
+          <button class="nav-item nav-item-link" type="button" data-view="data-import" aria-disabled="true">
             <span class="nav-label">Data Import</span>
             <span class="nav-arrow">&gt;</span>
           </button>
@@ -67,142 +67,239 @@
       </aside>
 
       <main class="main">
-        <header class="topbar glass-card">
-          <div>
-            <h1 class="title">Body Repair Tracking System</h1>
-            <p class="subtitle">Freeway Motor Sales Corporation Custom BI Analytics</p>
-          </div>
-          <div class="topbar-actions">
-            <input class="search" placeholder="Search jobs, plates, customers..." />
-            <button id="newJobBtn" class="btn-primary">New Job</button>
-          </div>
-        </header>
-
-        <section class="glass-card p-6 animate-in">
-          <div class="section-header">
+        <div id="dashboardView" class="view active-view">
+          <header class="topbar glass-card">
             <div>
-              <h2>Performance Overview</h2>
-              <p class="subtitle">Live operations trends and throughput pacing.</p>
+              <h1 class="title">Body Repair Tracking System</h1>
+              <p class="subtitle">Freeway Motor Sales Corporation Custom BI Analytics</p>
             </div>
-            <div class="flex gap-3" id="rangeButtons">
-              <button class="chip" data-range="today">Today</button>
-              <button class="chip" data-range="7d">7 Days</button>
-              <button class="chip active" data-range="30d">30 Days</button>
-              <button class="chip" data-range="custom">Custom</button>
+            <div class="topbar-actions">
+              <input class="search" placeholder="Search jobs, plates, customers..." />
+              <button id="newJobBtn" class="btn-primary">New Job</button>
             </div>
-            <div id="customRangeControls" class="hidden flex gap-2 items-center">
-              <input id="customStartDate" type="date" class="search !min-w-[140px] !px-3 !py-2" />
-              <input id="customEndDate" type="date" class="search !min-w-[140px] !px-3 !py-2" />
-              <button id="applyCustomRange" class="btn-secondary">Apply</button>
-            </div>
-          </div>
-          <div class="grid gap-6 lg:grid-cols-[2fr_1fr]">
-            <div class="glass-subcard">
-              <div class="kpi-label">Job Trend</div>
-              <canvas id="jobTrendChart" height="140"></canvas>
-            </div>
-            <div class="glass-subcard flex flex-col justify-between">
+          </header>
+
+          <section class="glass-card p-6 animate-in">
+            <div class="section-header">
               <div>
-                <div class="kpi-label">Performance Snapshot</div>
+                <h2>Performance Overview</h2>
+                <p class="subtitle">Live operations trends and throughput pacing.</p>
               </div>
-              <div class="kpi-grid-compact">
-                <div>
-                  <div class="kpi-label">Active Jobs</div>
-                  <div class="kpi-value" id="kpiActive">--</div>
-                </div>
-                <div>
-                  <div class="kpi-label">Avg. Cycle</div>
-                  <div class="kpi-value" id="kpiCycle">--</div>
-                </div>
-                <div>
-                  <div class="kpi-label">LOA Alerts</div>
-                  <div class="kpi-value" id="kpiAlerts">--</div>
-                </div>
-                <div>
-                  <div class="kpi-label">Revenue</div>
-                  <div class="kpi-value" id="kpiRevenue">₱0</div>
-                </div>
+              <div class="flex gap-3" id="rangeButtons">
+                <button class="chip" data-range="today">Today</button>
+                <button class="chip" data-range="7d">7 Days</button>
+                <button class="chip active" data-range="30d">30 Days</button>
+                <button class="chip" data-range="custom">Custom</button>
               </div>
-              <div class="kpi-grid-compact">
-                <div>
-                  <div class="kpi-label">Pending Parts</div>
-                  <div class="kpi-value" id="kpiPendingParts">--</div>
-                </div>
-                <div>
-                  <div class="kpi-label">Pending LOA</div>
-                  <div class="kpi-value" id="kpiPendingLoa">--</div>
-                </div>
-                <div>
-                  <div class="kpi-label">In Repair</div>
-                  <div class="kpi-value" id="kpiInRepair">--</div>
-                </div>
-                <div>
-                  <div class="kpi-label">Billing Pending</div>
-                  <div class="kpi-value" id="kpiBillingPending">₱0</div>
-                </div>
+              <div id="customRangeControls" class="hidden flex gap-2 items-center">
+                <input id="customStartDate" type="date" class="search !min-w-[140px] !px-3 !py-2" />
+                <input id="customEndDate" type="date" class="search !min-w-[140px] !px-3 !py-2" />
+                <button id="applyCustomRange" class="btn-secondary">Apply</button>
               </div>
-              <div class="kpi-grid-compact">
+            </div>
+            <div class="grid gap-6 lg:grid-cols-[2fr_1fr]">
+              <div class="glass-subcard">
+                <div class="kpi-label">Job Trend</div>
+                <canvas id="jobTrendChart" height="140"></canvas>
+              </div>
+              <div class="glass-subcard flex flex-col justify-between">
                 <div>
-                  <div class="kpi-label">LOA Efficiency</div>
-                  <div class="kpi-value" id="kpiLoaEfficiency">--</div>
+                  <div class="kpi-label">Performance Snapshot</div>
                 </div>
-                <div>
-                  <div class="kpi-label">Logistics Flow</div>
-                  <div class="kpi-value" id="kpiLogisticsFlow">--</div>
+                <div class="kpi-grid-compact">
+                  <div>
+                    <div class="kpi-label">Active Jobs</div>
+                    <div class="kpi-value" id="kpiActive">--</div>
+                  </div>
+                  <div>
+                    <div class="kpi-label">Avg. Cycle</div>
+                    <div class="kpi-value" id="kpiCycle">--</div>
+                  </div>
+                  <div>
+                    <div class="kpi-label">LOA Alerts</div>
+                    <div class="kpi-value" id="kpiAlerts">--</div>
+                  </div>
+                  <div>
+                    <div class="kpi-label">Revenue</div>
+                    <div class="kpi-value" id="kpiRevenue">₱0</div>
+                  </div>
                 </div>
-                <div>
-                  <div class="kpi-label">Production Speed</div>
-                  <div class="kpi-value" id="kpiProductionSpeed">--</div>
+                <div class="kpi-grid-compact">
+                  <div>
+                    <div class="kpi-label">Pending Parts</div>
+                    <div class="kpi-value" id="kpiPendingParts">--</div>
+                  </div>
+                  <div>
+                    <div class="kpi-label">Pending LOA</div>
+                    <div class="kpi-value" id="kpiPendingLoa">--</div>
+                  </div>
+                  <div>
+                    <div class="kpi-label">In Repair</div>
+                    <div class="kpi-value" id="kpiInRepair">--</div>
+                  </div>
+                  <div>
+                    <div class="kpi-label">Billing Pending</div>
+                    <div class="kpi-value" id="kpiBillingPending">₱0</div>
+                  </div>
                 </div>
-                <div>
-                  <div class="kpi-label">Billing Velocity</div>
-                  <div class="kpi-value" id="kpiBillingVelocity">--</div>
+                <div class="kpi-grid-compact">
+                  <div>
+                    <div class="kpi-label">LOA Efficiency</div>
+                    <div class="kpi-value" id="kpiLoaEfficiency">--</div>
+                  </div>
+                  <div>
+                    <div class="kpi-label">Logistics Flow</div>
+                    <div class="kpi-value" id="kpiLogisticsFlow">--</div>
+                  </div>
+                  <div>
+                    <div class="kpi-label">Production Speed</div>
+                    <div class="kpi-value" id="kpiProductionSpeed">--</div>
+                  </div>
+                  <div>
+                    <div class="kpi-label">Billing Velocity</div>
+                    <div class="kpi-value" id="kpiBillingVelocity">--</div>
+                  </div>
                 </div>
               </div>
             </div>
-          </div>
-        </section>
+          </section>
 
-        <section class="glass-card table-card animate-in">
-          <div class="section-header">
-            <h2>Active Jobs</h2>
-            <div class="table-filters">
-              <button class="chip active" data-phase="ALL">All</button>
-              <button class="chip" data-phase="APPROVAL">Approval</button>
-              <button class="chip" data-phase="PARTS">Parts</button>
-              <button class="chip" data-phase="REPAIR">Repair</button>
-              <button class="chip" data-phase="PICKUP">Pickup</button>
-              <button class="chip" data-phase="BILLING">Billing</button>
-              <button class="chip" data-phase="DISMANTLE">Dismantle</button>
-            </div>
-          </div>
-          <div class="table-scroll">
-            <div class="table dense-table">
-              <div class="table-head">
-                <span>ID</span>
-                <span>Vehicle</span>
-                <span>Customer</span>
-                <span>Insurance <button class="filter-btn" data-filter="insurance">▾</button></span>
-                <span>Phase <button class="filter-btn" data-filter="phase">▾</button></span>
-                <span>Estimate</span>
-                <span>LOA Approved</span>
-                <span>Phase Started</span>
-                <span>Days in Phase</span>
-                <span>Total Days</span>
+          <section class="glass-card table-card animate-in">
+            <div class="section-header">
+              <h2>Active Jobs</h2>
+              <div class="table-filters">
+                <button class="chip active" data-phase="ALL">All</button>
+                <button class="chip" data-phase="APPROVAL">Approval</button>
+                <button class="chip" data-phase="PARTS">Parts</button>
+                <button class="chip" data-phase="REPAIR">Repair</button>
+                <button class="chip" data-phase="PICKUP">Pickup</button>
+                <button class="chip" data-phase="BILLING">Billing</button>
+                <button class="chip" data-phase="DISMANTLE">Dismantle</button>
               </div>
-              <div id="jobsTable" class="table-body"></div>
             </div>
-          </div>
-          <div id="filterMenu" class="filter-menu hidden"></div>
-        </section>
+            <div class="table-scroll">
+              <div class="table dense-table">
+                <div class="table-head">
+                  <span>ID</span>
+                  <span>Vehicle</span>
+                  <span>Customer</span>
+                  <span>Insurance <button class="filter-btn" data-filter="insurance">▾</button></span>
+                  <span>Phase <button class="filter-btn" data-filter="phase">▾</button></span>
+                  <span>Estimate</span>
+                  <span>LOA Approved</span>
+                  <span>Phase Started</span>
+                  <span>Days in Phase</span>
+                  <span>Total Days</span>
+                </div>
+                <div id="jobsTable" class="table-body"></div>
+              </div>
+            </div>
+            <div id="filterMenu" class="filter-menu hidden"></div>
+          </section>
 
-        <section class="table-pagination">
-          <div id="pageInfo" class="subtitle">Page 1 of 1</div>
-          <div class="pagination-controls">
-            <button id="prevPage" class="btn-secondary">Prev</button>
-            <button id="nextPage" class="btn-secondary">Next</button>
-          </div>
-        </section>
+          <section class="table-pagination">
+            <div id="pageInfo" class="subtitle">Page 1 of 1</div>
+            <div class="pagination-controls">
+              <button id="prevPage" class="btn-secondary">Prev</button>
+              <button id="nextPage" class="btn-secondary">Next</button>
+            </div>
+          </section>
+        </div>
+
+        <div id="chartsView" class="view">
+          <header class="topbar glass-card infographic-card pop-in">
+            <div>
+              <h1 class="title">Charts</h1>
+              <p class="subtitle">Operational analytics based on live repair data.</p>
+            </div>
+            <div class="topbar-actions">
+              <input id="chartSearch" class="search" placeholder="Search metrics..." />
+              <button class="btn-secondary" type="button" data-view="dashboard">Back to Dashboard</button>
+            </div>
+          </header>
+
+          <section class="glass-card p-6 animate-in infographic-card pop-in">
+            <div class="section-header">
+              <div>
+                <h2>Chart Options</h2>
+                <p class="subtitle">Select a metric and a date range to visualize.</p>
+              </div>
+              <div class="input-bar">
+                <select id="chartMetric" class="search input-select">
+                  <option value="repairsIn">Repairs In (Daily)</option>
+                  <option value="repairsOut">Repairs Out (Daily)</option>
+                  <option value="estimatesMade">Estimates Made (Daily)</option>
+                  <option value="insuranceDistribution">Insurance Claim Distribution</option>
+                  <option value="carModelDistribution">Cars Repaired Distribution</option>
+                  <option value="phaseConcentration">Job Phase Concentration</option>
+                </select>
+                <input id="chartStartDate" type="date" class="search input-date" />
+                <input id="chartEndDate" type="date" class="search input-date" />
+                <button id="chartApply" class="btn-primary">Apply</button>
+              </div>
+            </div>
+
+            <div class="grid gap-6">
+              <div class="glass-subcard">
+                <div class="kpi-label" id="chartTitle">Repairs In (Daily)</div>
+                <canvas id="mainChart" height="160"></canvas>
+              </div>
+            </div>
+          </section>
+
+        </div>
+
+        <div id="tablesView" class="view">
+          <header class="topbar glass-card infographic-card pop-in">
+            <div>
+              <h1 class="title">Tables</h1>
+              <p class="subtitle">Cycle-time analytics with insurance and repair breakdowns.</p>
+            </div>
+            <div class="topbar-actions">
+              <input id="tableSearch" class="search" placeholder="Search tables..." />
+              <button class="btn-secondary" type="button" data-view="dashboard">Back to Dashboard</button>
+            </div>
+          </header>
+
+          <section class="glass-card p-6 animate-in infographic-card pop-in">
+            <div class="section-header">
+              <div>
+                <h2>Table Options</h2>
+                <p class="subtitle">Choose a data view and apply a date range.</p>
+              </div>
+              <div class="input-bar">
+                <select id="tableMetric" class="search input-select">
+                  <option value="phaseCycleTimes">Average Time by Phase</option>
+                  <option value="loaApprovalByInsurance">LOA Approval Time by Insurance</option>
+                  <option value="paymentSpeedByInsurance">Payment Speed by Insurance</option>
+                  <option value="repairTimeByPriceRange">Repair Time by Price Range</option>
+                  <option value="repairTimeByModel">Repair Time by Car Model</option>
+                  <option value="repairTimeByModelPrice">Repair Time by Model + Price Range</option>
+                </select>
+                <input id="tableStartDate" type="date" class="search input-date" />
+                <input id="tableEndDate" type="date" class="search input-date" />
+                <button id="tableApply" class="btn-primary">Apply</button>
+              </div>
+            </div>
+
+            <div class="grid gap-6 lg:grid-cols-[2fr_1fr]">
+              <div class="glass-subcard">
+                <div class="kpi-label" id="tableTitle">Average Time by Phase</div>
+                <div class="table-scroll">
+                  <div class="table compact-table">
+                    <div id="tableHead" class="table-head"></div>
+                    <div id="tableBody" class="table-body"></div>
+                  </div>
+                </div>
+              </div>
+              <div class="glass-subcard">
+                <div class="kpi-label">Pending Repair Queue</div>
+                <div class="kpi-value" id="pendingRepairCount">0</div>
+                <div class="subtitle" id="pendingRepairAvg">Average wait: --</div>
+              </div>
+            </div>
+          </section>
+        </div>
       </main>
     </div>
 
@@ -388,6 +485,8 @@
 
     <script src="https://cdn.jsdelivr.net/npm/gsap@3.12.5/dist/gsap.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
-    <script src="{% static 'app.js' %}?v=20260204c"></script>
+    <script src="{% static 'app.js' %}?v=20260209b"></script>
+    <script src="{% static 'charts.js' %}?v=20260209h"></script>
+    <script src="{% static 'tables.js' %}?v=20260209k"></script>
   </body>
 </html>

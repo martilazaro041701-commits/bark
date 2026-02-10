@@ -55,6 +55,14 @@ class JobSerializer(serializers.ModelSerializer):
 
         if obj.phase == JobPhase.CANCELLED:
             return None
+        if obj.phase == JobPhase.BILLING_RELEASED:
+            released = (
+                obj.status_history.filter(new_phase=JobPhase.BILLING_RELEASED)
+                .order_by("timestamp")
+                .last()
+            )
+            if released:
+                end_date = timezone.localtime(released.timestamp).date()
 
         days = (end_date - start_date).days + 1
         return max(days, 1)
@@ -65,7 +73,7 @@ class JobSerializer(serializers.ModelSerializer):
             return 0
         start_date = timezone.localtime(latest.timestamp).date()
         end_date = timezone.localtime(timezone.now()).date()
-        if obj.phase == JobPhase.CANCELLED:
+        if obj.phase in {JobPhase.CANCELLED, JobPhase.BILLING_RELEASED}:
             return None
         days = (end_date - start_date).days + 1
         return max(days, 1)

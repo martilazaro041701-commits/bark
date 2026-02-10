@@ -23,10 +23,26 @@ from django.views.generic import TemplateView
 from repairs.views import login_view, logout_view
 
 urlpatterns = [
+    path("", login_view, name="home"),
     path(
-        "",
+        "dashboard/",
         login_required(ensure_csrf_cookie(TemplateView.as_view(template_name="dashboard.html"))),
         name="dashboard",
+    ),
+    path(
+        "charts/",
+        login_required(ensure_csrf_cookie(TemplateView.as_view(template_name="charts.html"))),
+        name="charts",
+    ),
+    path(
+        "tables/",
+        login_required(ensure_csrf_cookie(TemplateView.as_view(template_name="tables.html"))),
+        name="tables",
+    ),
+    path(
+        "data-import/",
+        login_required(ensure_csrf_cookie(TemplateView.as_view(template_name="data_import.html"))),
+        name="data-import",
     ),
     path("login/", login_view, name="login"),
     path("logout/", logout_view, name="logout"),

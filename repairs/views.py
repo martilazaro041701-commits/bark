@@ -3,7 +3,20 @@ from datetime import datetime, time, timedelta
 from django.db import models
 from django.db import transaction
 from django.core.paginator import Paginator
-from django.db.models import Avg, Count, ExpressionWrapper, F, OuterRef, Q, Subquery, Sum
+from django.db.models import (
+    Avg,
+    Case,
+    CharField,
+    Count,
+    ExpressionWrapper,
+    F,
+    OuterRef,
+    Q,
+    Subquery,
+    Sum,
+    Value,
+    When,
+)
 from django.db.models.functions import Coalesce, TruncDate
 from django.contrib.auth import authenticate, login, logout
 from django.http import JsonResponse
@@ -22,6 +35,71 @@ from .serializers import (
     JobSerializer,
     JobUpdateSerializer,
 )
+
+
+def _parse_date_range(request, default_days=30):
+    tz = timezone.get_current_timezone()
+    today = timezone.localdate()
+    start_str = request.query_params.get("start_date")
+    end_str = request.query_params.get("end_date")
+    if start_str and end_str:
+        try:
+            start_date = datetime.strptime(start_str, "%Y-%m-%d").date()
+            end_date = datetime.strptime(end_str, "%Y-%m-%d").date()
+        except ValueError:
+            return None, None, None, None, Response(
+                {"detail": "Invalid date format. Use YYYY-MM-DD."}, status=400
+            )
+        if end_date < start_date:
+            return None, None, None, None, Response(
+                {"detail": "end_date must be on or after start_date."}, status=400
+            )
+    else:
+        end_date = today
+        start_date = today - timedelta(days=max(default_days - 1, 0))
+
+    start_dt = timezone.make_aware(datetime.combine(start_date, time.min), tz)
+    end_dt = timezone.make_aware(datetime.combine(end_date, time.max), tz)
+    return start_date, end_date, start_dt, end_dt, None
+
+
+def _duration_seconds(duration):
+    if not duration:
+        return None
+    return duration.total_seconds()
+
+
+def _daily_series(qs, start_date, end_date, tz):
+    series = (
+        qs.annotate(day=TruncDate("timestamp", tzinfo=tz))
+        .values("day")
+        .annotate(total=Count("job", distinct=True))
+        .order_by("day")
+    )
+    series_map = {row["day"]: row["total"] for row in series}
+    labels = []
+    values = []
+    current = start_date
+    while current <= end_date:
+        labels.append(current.strftime("%b %d"))
+        values.append(series_map.get(current, 0))
+        current += timedelta(days=1)
+    return labels, values
+
+
+def _normalize_model_name(raw_value):
+    if raw_value is None:
+        return "Unknown"
+    cleaned = " ".join(str(raw_value).split()).strip()
+    if not cleaned:
+        return "Unknown"
+    lowered = cleaned.lower().replace(" ", "")
+    if lowered == "xforce":
+        return "Xforce"
+    if lowered == "xpander":
+        return "Xpander"
+    # Keep Mirage vs Mirage G4 distinct by not collapsing tokens.
+    return cleaned.title()
 
 
 class JobListCreateAPIView(APIView):
@@ -339,20 +417,20 @@ class AnalyticsAPIView(APIView):
             current += timedelta(days=1)
 
         pending_parts = (
-            Job.objects.filter(phase__startswith="PARTS", updated_at__range=(start_dt, end_dt))
-            .values("vehicle__customer")
+            Job.objects.filter(phase__startswith="PARTS")
+            .values("id")
             .distinct()
             .count()
         )
         pending_loa = (
-            Job.objects.filter(phase__startswith="APPROVAL", updated_at__range=(start_dt, end_dt))
-            .values("vehicle__customer")
+            Job.objects.filter(phase__startswith="APPROVAL")
+            .values("id")
             .distinct()
             .count()
         )
         in_repair = (
-            Job.objects.filter(phase__startswith="REPAIR", updated_at__range=(start_dt, end_dt))
-            .values("vehicle__customer")
+            Job.objects.filter(phase__startswith="REPAIR")
+            .values("id")
             .distinct()
             .count()
         )
@@ -421,5 +499,379 @@ class AnalyticsAPIView(APIView):
             "cycleTimes": cycle_times,
         }
         return Response(analytics)
+
+
+class ChartsAPIView(APIView):
+    def get(self, request):
+        start_date, end_date, start_dt, end_dt, error = _parse_date_range(request, default_days=30)
+        if error:
+            return error
+        tz = timezone.get_current_timezone()
+
+        repairs_in_qs = StatusHistory.objects.filter(
+            new_phase=JobPhase.REPAIR_ONGOING_REPAIR,
+            timestamp__range=(start_dt, end_dt),
+        )
+        repairs_out_qs = StatusHistory.objects.filter(
+            new_phase__in=[JobPhase.PICKUP_RELEASED, JobPhase.BILLING_RELEASED],
+            timestamp__range=(start_dt, end_dt),
+        )
+        estimates_qs = StatusHistory.objects.filter(
+            new_phase=JobPhase.APPROVAL_ESTIMATE_DONE,
+            timestamp__range=(start_dt, end_dt),
+        )
+
+        repairs_in_labels, repairs_in_values = _daily_series(
+            repairs_in_qs, start_date, end_date, tz
+        )
+        repairs_out_labels, repairs_out_values = _daily_series(
+            repairs_out_qs, start_date, end_date, tz
+        )
+        estimates_labels, estimates_values = _daily_series(
+            estimates_qs, start_date, end_date, tz
+        )
+
+        insurance_distribution = (
+            Job.objects.filter(created_at__range=(start_dt, end_dt))
+            .values("vehicle__insurance_company")
+            .annotate(total=Count("id"))
+            .order_by("-total")
+        )
+        insurance_data = [
+            {"label": row["vehicle__insurance_company"] or "Unknown", "value": row["total"]}
+            for row in insurance_distribution
+        ]
+
+        model_names = Job.objects.filter(created_at__range=(start_dt, end_dt)).values_list(
+            "vehicle__model", flat=True
+        )
+        model_counts = {}
+        for name in model_names:
+            normalized = _normalize_model_name(name)
+            model_counts[normalized] = model_counts.get(normalized, 0) + 1
+        model_data = [
+            {"label": key, "value": value}
+            for key, value in sorted(model_counts.items(), key=lambda x: x[1], reverse=True)
+        ]
+
+        billing_pending_qs = Job.objects.filter(phase=JobPhase.BILLING_PENDING)
+        billing_pending_total = (
+            billing_pending_qs.aggregate(total=Sum("approved_loa_amount")).get("total") or 0
+        )
+
+        loa_approved_jobs = StatusHistory.objects.filter(
+            new_phase=JobPhase.APPROVAL_LOA_APPROVED,
+            timestamp__range=(start_dt, end_dt),
+        ).values_list("job_id", flat=True)
+        loa_approved_qs = Job.objects.filter(id__in=loa_approved_jobs)
+        loa_approved_total = (
+            loa_approved_qs.aggregate(total=Sum("approved_loa_amount")).get("total") or 0
+        )
+
+        phase_counts = {}
+        for phase in Job.objects.values_list("phase", flat=True):
+            prefix = (phase or "UNKNOWN").split("_")[0]
+            phase_counts[prefix] = phase_counts.get(prefix, 0) + 1
+        phase_concentration = [
+            {"label": key.title(), "value": value}
+            for key, value in sorted(phase_counts.items(), key=lambda x: x[1], reverse=True)
+        ]
+
+        return Response(
+            {
+                "range": {
+                    "start_date": start_date.isoformat(),
+                    "end_date": end_date.isoformat(),
+                },
+                "repairsIn": {"labels": repairs_in_labels, "values": repairs_in_values},
+                "repairsOut": {"labels": repairs_out_labels, "values": repairs_out_values},
+                "estimatesMade": {"labels": estimates_labels, "values": estimates_values},
+                "insuranceDistribution": insurance_data,
+                "carModelDistribution": model_data,
+                "pendingBilled": {
+                    "count": billing_pending_qs.count(),
+                    "total": float(billing_pending_total),
+                },
+                "approvedLoa": {
+                    "count": loa_approved_qs.count(),
+                    "total": float(loa_approved_total),
+                },
+                "phaseConcentration": phase_concentration,
+            }
+        )
+
+
+class TablesAPIView(APIView):
+    def get(self, request):
+        start_date, end_date, start_dt, end_dt, error = _parse_date_range(request, default_days=30)
+        if error:
+            return error
+
+        phase_cycle_qs = (
+            StatusHistory.objects.filter(
+                timestamp__range=(start_dt, end_dt), duration__isnull=False
+            )
+            .values("new_phase")
+            .annotate(avg=Avg("duration"))
+            .order_by("new_phase")
+        )
+        phase_cycle_times = [
+            {
+                "phase": row["new_phase"].replace("_", " ").title(),
+                "avg_seconds": _duration_seconds(row["avg"]),
+            }
+            for row in phase_cycle_qs
+        ]
+
+        def _avg_duration_by_insurance(start_phase, end_phase):
+            start_sub = Subquery(
+                StatusHistory.objects.filter(job=OuterRef("pk"), new_phase=start_phase)
+                .order_by("timestamp")
+                .values("timestamp")[:1]
+            )
+            end_sub = Subquery(
+                StatusHistory.objects.filter(job=OuterRef("pk"), new_phase=end_phase)
+                .order_by("timestamp")
+                .values("timestamp")[:1]
+            )
+            qs = (
+                Job.objects.select_related("vehicle")
+                .annotate(start_ts=start_sub, end_ts=end_sub)
+                .filter(start_ts__isnull=False, end_ts__isnull=False)
+                .filter(end_ts__range=(start_dt, end_dt))
+                .filter(end_ts__gte=F("start_ts"))
+                .annotate(
+                    duration=ExpressionWrapper(
+                        F("end_ts") - F("start_ts"),
+                        output_field=models.DurationField(),
+                    )
+                )
+                .values("vehicle__insurance_company")
+                .annotate(avg=Avg("duration"))
+                .order_by("-avg")
+            )
+            return [
+                {
+                    "insurance": row["vehicle__insurance_company"] or "Unknown",
+                    "avg_seconds": _duration_seconds(row["avg"]),
+                }
+                for row in qs
+            ]
+
+        loa_by_insurance = _avg_duration_by_insurance(
+            JobPhase.APPROVAL_LOA_PROCESSING, JobPhase.APPROVAL_LOA_APPROVED
+        )
+        payment_by_insurance = _avg_duration_by_insurance(
+            JobPhase.BILLING_PENDING, JobPhase.BILLING_PAID
+        )
+
+        repair_start_sub = Subquery(
+            StatusHistory.objects.filter(job=OuterRef("pk"), new_phase=JobPhase.REPAIR_ONGOING_REPAIR)
+            .order_by("timestamp")
+            .values("timestamp")[:1]
+        )
+        repair_end_sub = Subquery(
+            StatusHistory.objects.filter(
+                job=OuterRef("pk"), new_phase=JobPhase.REPAIR_INSPECTION_TESTING
+            )
+            .order_by("timestamp")
+            .values("timestamp")[:1]
+        )
+
+        repair_qs = (
+            Job.objects.select_related("vehicle")
+            .annotate(start_ts=repair_start_sub, end_ts=repair_end_sub)
+            .filter(start_ts__isnull=False, end_ts__isnull=False)
+            .filter(end_ts__range=(start_dt, end_dt))
+            .filter(end_ts__gte=F("start_ts"))
+            .annotate(
+                duration=ExpressionWrapper(
+                    F("end_ts") - F("start_ts"), output_field=models.DurationField()
+                )
+            )
+        )
+
+        price_bucket = Case(
+            When(approved_loa_amount__lt=50000, then=Value("₱0-₱50K")),
+            When(approved_loa_amount__lt=150000, then=Value("₱50K-₱150K")),
+            When(approved_loa_amount__lt=300000, then=Value("₱150K-₱300K")),
+            When(approved_loa_amount__lt=700000, then=Value("₱300K-₱700K")),
+            default=Value("₱700K+"),
+            output_field=CharField(),
+        )
+
+        repair_by_price = (
+            repair_qs.annotate(price_bucket=price_bucket)
+            .values("price_bucket")
+            .annotate(avg=Avg("duration"))
+            .order_by("price_bucket")
+        )
+        repair_by_price_data = [
+            {"range": row["price_bucket"], "avg_seconds": _duration_seconds(row["avg"])}
+            for row in repair_by_price
+        ]
+
+        repair_by_model = (
+            repair_qs.values("vehicle__model")
+            .annotate(avg=Avg("duration"))
+            .order_by("-avg")
+        )
+        repair_by_model_data = [
+            {
+                "model": row["vehicle__model"] or "Unknown",
+                "avg_seconds": _duration_seconds(row["avg"]),
+            }
+            for row in repair_by_model
+        ]
+
+        repair_by_model_price = (
+            repair_qs.annotate(price_bucket=price_bucket)
+            .values("vehicle__model", "price_bucket")
+            .annotate(avg=Avg("duration"))
+            .order_by("vehicle__model", "price_bucket")
+        )
+        repair_by_model_price_data = [
+            {
+                "model": row["vehicle__model"] or "Unknown",
+                "range": row["price_bucket"],
+                "avg_seconds": _duration_seconds(row["avg"]),
+            }
+            for row in repair_by_model_price
+        ]
+
+        pending_repair_phases = [
+            JobPhase.REPAIR_WAITING_SCHEDULING,
+            JobPhase.REPAIR_WAITING_PARTS,
+        ]
+        parts_arrived_sub = Subquery(
+            StatusHistory.objects.filter(job=OuterRef("pk"), new_phase=JobPhase.PARTS_ARRIVED)
+            .order_by("-timestamp")
+            .values("timestamp")[:1]
+        )
+        now = timezone.now()
+        pending_repair_qs = (
+            Job.objects.filter(phase__in=pending_repair_phases)
+            .annotate(parts_arrived=parts_arrived_sub)
+            .filter(parts_arrived__isnull=False)
+            .annotate(
+                duration=ExpressionWrapper(
+                    Value(now) - F("parts_arrived"),
+                    output_field=models.DurationField(),
+                )
+            )
+        )
+        pending_repair_avg = pending_repair_qs.aggregate(avg=Avg("duration")).get("avg")
+
+        return Response(
+            {
+                "range": {
+                    "start_date": start_date.isoformat(),
+                    "end_date": end_date.isoformat(),
+                },
+                "phaseCycleTimes": phase_cycle_times,
+                "loaApprovalByInsurance": loa_by_insurance,
+                "paymentSpeedByInsurance": payment_by_insurance,
+                "repairTimeByPriceRange": repair_by_price_data,
+                "repairTimeByModel": repair_by_model_data,
+                "repairTimeByModelPrice": repair_by_model_price_data,
+                "pendingRepair": {
+                    "count": pending_repair_qs.count(),
+                    "avg_seconds": _duration_seconds(pending_repair_avg),
+                },
+            }
+        )
+
+
+class CsvImportAPIView(APIView):
+    def post(self, request):
+        if not request.user.is_authenticated:
+            return Response({"detail": "Authentication required."}, status=status.HTTP_403_FORBIDDEN)
+
+        upload = request.FILES.get("file")
+        if not upload:
+            return Response({"detail": "CSV file is required."}, status=status.HTTP_400_BAD_REQUEST)
+
+        columns_raw = request.POST.get("columns")
+        selected_columns = None
+        if columns_raw:
+            selected_columns = {col.strip() for col in columns_raw.split(",") if col.strip()}
+
+        try:
+            content = upload.read().decode("utf-8-sig")
+        except Exception:
+            return Response({"detail": "Unable to read CSV file."}, status=status.HTTP_400_BAD_REQUEST)
+
+        import csv
+        from io import StringIO
+
+        reader = csv.DictReader(StringIO(content))
+        created = 0
+        skipped = 0
+        errors = []
+
+        for idx, row in enumerate(reader, start=2):
+            data = {k: v for k, v in row.items() if k}
+            if selected_columns is not None:
+                data = {k: v for k, v in data.items() if k in selected_columns}
+
+            plate = data.get("plate_number") or data.get("plate") or data.get("plateNumber")
+            if not plate:
+                skipped += 1
+                errors.append(f"Row {idx}: missing plate_number.")
+                continue
+
+            customer_name = data.get("customer_name") or data.get("customer") or "Unnamed Customer"
+            customer, _ = Customer.objects.get_or_create(name=customer_name)
+            if data.get("customer_phone"):
+                customer.phone = data.get("customer_phone")
+            if data.get("customer_email"):
+                customer.email = data.get("customer_email")
+            if data.get("customer_address"):
+                customer.address = data.get("customer_address")
+            customer.save()
+
+            vehicle, _ = Vehicle.objects.get_or_create(
+                plate_number=plate,
+                defaults={
+                    "customer": customer,
+                    "model": data.get("vehicle_model") or data.get("model") or "Unknown",
+                    "insurance_company": data.get("insurance_company") or data.get("insurance") or "Unknown",
+                },
+            )
+
+            if vehicle.customer_id != customer.id:
+                vehicle.customer = customer
+            if data.get("vehicle_model") or data.get("model"):
+                vehicle.model = data.get("vehicle_model") or data.get("model")
+            if data.get("insurance_company") or data.get("insurance"):
+                vehicle.insurance_company = data.get("insurance_company") or data.get("insurance")
+            vehicle.save()
+
+            phase = data.get("phase") or JobPhase.APPROVAL_ESTIMATE_DONE
+            valid_phases = {choice[0] for choice in JobPhase.choices}
+            if phase not in valid_phases:
+                phase = JobPhase.APPROVAL_ESTIMATE_DONE
+
+            Job.objects.create(
+                vehicle=vehicle,
+                description=data.get("description", ""),
+                total_estimate=data.get("total_estimate") or 0,
+                approved_loa_amount=data.get("approved_loa_amount") or 0,
+                parts_price=data.get("parts_price") or 0,
+                labor_cost=data.get("labor_cost") or 0,
+                vat=data.get("vat") or 0,
+                total_cost=data.get("total_cost") or 0,
+                phase=phase,
+            )
+            created += 1
+
+        return Response(
+            {
+                "created": created,
+                "skipped": skipped,
+                "errors": errors[:10],
+            },
+            status=status.HTTP_201_CREATED,
+        )
 
 # Create your views here.
