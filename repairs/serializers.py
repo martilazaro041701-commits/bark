@@ -44,34 +44,45 @@ class JobSerializer(serializers.ModelSerializer):
         return CustomerSerializer(obj.vehicle.customer).data
 
     def get_phase_started_at(self, obj):
+        latest_ts = getattr(obj, "latest_status_ts", None)
+        if latest_ts:
+            return latest_ts
         latest = obj.status_history.order_by("-timestamp").first()
         return latest.timestamp if latest else obj.updated_at
 
     def get_total_days(self, obj):
-        first_entry = obj.status_history.order_by("timestamp").first()
-        start = first_entry.timestamp if first_entry else obj.created_at
+        first_ts = getattr(obj, "first_status_ts", None)
+        start = first_ts if first_ts else obj.created_at
         start_date = timezone.localtime(start).date()
         end_date = timezone.localtime(timezone.now()).date()
 
         if obj.phase == JobPhase.CANCELLED:
             return None
         if obj.phase == JobPhase.BILLING_RELEASED:
-            released = (
-                obj.status_history.filter(new_phase=JobPhase.BILLING_RELEASED)
-                .order_by("timestamp")
-                .last()
-            )
-            if released:
-                end_date = timezone.localtime(released.timestamp).date()
+            released_ts = getattr(obj, "billing_released_ts", None)
+            if released_ts:
+                end_date = timezone.localtime(released_ts).date()
+            else:
+                released = (
+                    obj.status_history.filter(new_phase=JobPhase.BILLING_RELEASED)
+                    .order_by("timestamp")
+                    .last()
+                )
+                if released:
+                    end_date = timezone.localtime(released.timestamp).date()
 
         days = (end_date - start_date).days + 1
         return max(days, 1)
 
     def get_days_in_current_phase(self, obj):
-        latest = obj.status_history.order_by("-timestamp").first()
-        if not latest:
-            return 0
-        start_date = timezone.localtime(latest.timestamp).date()
+        latest_ts = getattr(obj, "latest_status_ts", None)
+        if latest_ts:
+            start_date = timezone.localtime(latest_ts).date()
+        else:
+            latest = obj.status_history.order_by("-timestamp").first()
+            if not latest:
+                return 0
+            start_date = timezone.localtime(latest.timestamp).date()
         end_date = timezone.localtime(timezone.now()).date()
         if obj.phase in {JobPhase.CANCELLED, JobPhase.BILLING_RELEASED}:
             return None

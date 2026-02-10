@@ -115,8 +115,30 @@ class JobListCreateAPIView(APIView):
     def get(self, request):
         _start = _time.monotonic()
         try:
+            latest_status_ts = Subquery(
+                StatusHistory.objects.filter(job=OuterRef("pk"))
+                .order_by("-timestamp")
+                .values("timestamp")[:1]
+            )
+            first_status_ts = Subquery(
+                StatusHistory.objects.filter(job=OuterRef("pk"))
+                .order_by("timestamp")
+                .values("timestamp")[:1]
+            )
+            billing_released_ts = Subquery(
+                StatusHistory.objects.filter(
+                    job=OuterRef("pk"), new_phase=JobPhase.BILLING_RELEASED
+                )
+                .order_by("-timestamp")
+                .values("timestamp")[:1]
+            )
             jobs = (
                 Job.objects.select_related("vehicle", "vehicle__customer")
+                .annotate(
+                    latest_status_ts=latest_status_ts,
+                    first_status_ts=first_status_ts,
+                    billing_released_ts=billing_released_ts,
+                )
                 .order_by("-updated_at")
             )
             query = request.query_params.get("q")
