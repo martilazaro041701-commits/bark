@@ -134,8 +134,12 @@ USE_TZ = True
 
 STATIC_URL = '/static/'
 STATIC_ROOT = BASE_DIR / 'staticfiles'
-STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
+# Use non-manifest storage so static files can be served even if collectstatic
+# isn't executed in the build environment.
+STATICFILES_STORAGE = 'whitenoise.storage.CompressedStaticFilesStorage'
 STATICFILES_DIRS = [BASE_DIR / 'frontend']
+# Allow WhiteNoise to serve files directly from STATICFILES_DIRS on Vercel.
+WHITENOISE_USE_FINDERS = os.getenv("VERCEL", "").lower() in ("1", "true", "yes")
 
 LOGIN_URL = "/login/"
 LOGIN_REDIRECT_URL = "/dashboard/"
