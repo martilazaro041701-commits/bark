@@ -23,6 +23,12 @@ class Vehicle(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
+    class Meta:
+        indexes = [
+            models.Index(fields=["insurance_company"]),
+            models.Index(fields=["model"]),
+        ]
+
     def __str__(self) -> str:
         return f"{self.model} ({self.plate_number})"
 
@@ -74,6 +80,13 @@ class Job(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
+    class Meta:
+        indexes = [
+            models.Index(fields=["phase"]),
+            models.Index(fields=["updated_at"]),
+            models.Index(fields=["created_at"]),
+        ]
+
     def __str__(self) -> str:
         return f"Job {self.pk} - {self.vehicle}"
 
@@ -101,6 +114,7 @@ class StatusHistory(models.Model):
             models.Index(fields=["job", "timestamp"]),
             models.Index(fields=["old_phase"]),
             models.Index(fields=["new_phase"]),
+            models.Index(fields=["new_phase", "timestamp"]),
         ]
 
     def __str__(self) -> str:

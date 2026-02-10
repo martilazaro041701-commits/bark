@@ -542,13 +542,16 @@ class ChartsAPIView(APIView):
             for row in insurance_distribution
         ]
 
-        model_names = Job.objects.filter(created_at__range=(start_dt, end_dt)).values_list(
-            "vehicle__model", flat=True
+        model_rows = (
+            Job.objects.filter(created_at__range=(start_dt, end_dt))
+            .values("vehicle__model")
+            .annotate(total=Count("id"))
+            .order_by("-total")
         )
         model_counts = {}
-        for name in model_names:
-            normalized = _normalize_model_name(name)
-            model_counts[normalized] = model_counts.get(normalized, 0) + 1
+        for row in model_rows:
+            normalized = _normalize_model_name(row["vehicle__model"])
+            model_counts[normalized] = model_counts.get(normalized, 0) + row["total"]
         model_data = [
             {"label": key, "value": value}
             for key, value in sorted(model_counts.items(), key=lambda x: x[1], reverse=True)
@@ -569,9 +572,9 @@ class ChartsAPIView(APIView):
         )
 
         phase_counts = {}
-        for phase in Job.objects.values_list("phase", flat=True):
-            prefix = (phase or "UNKNOWN").split("_")[0]
-            phase_counts[prefix] = phase_counts.get(prefix, 0) + 1
+        for row in Job.objects.values("phase").annotate(total=Count("id")):
+            prefix = (row["phase"] or "UNKNOWN").split("_")[0]
+            phase_counts[prefix] = phase_counts.get(prefix, 0) + row["total"]
         phase_concentration = [
             {"label": key.title(), "value": value}
             for key, value in sorted(phase_counts.items(), key=lambda x: x[1], reverse=True)
