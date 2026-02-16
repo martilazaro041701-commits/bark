@@ -436,6 +436,41 @@ body {
   display: flex;
 }
 
+.import-simple-wrap {
+  min-height: 360px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  gap: 14px;
+}
+
+.import-icon {
+  width: 74px;
+  height: 74px;
+  border-radius: 20px;
+  display: grid;
+  place-items: center;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  color: #ffffff;
+  background: linear-gradient(135deg, #f9703e, #c13b5a);
+  box-shadow: 0 14px 35px rgba(193, 59, 90, 0.26);
+}
+
+.import-main-btn {
+  min-width: 220px;
+}
+
+.import-help {
+  max-width: 620px;
+}
+
+.import-status {
+  min-height: 22px;
+}
+
 .kpi-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));

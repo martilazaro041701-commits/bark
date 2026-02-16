@@ -11,6 +11,7 @@ const state = {
     insurance: new Set(),
     phase: new Set(),
   },
+  detailCacheBuster: null,
 };
 
 const phaseCategory = (phase) => {
@@ -107,6 +108,7 @@ const toLocalInputValue = (value) => {
 };
 
 const el = (selector) => document.querySelector(selector);
+const freshToken = () => Date.now().toString();
 
 const getCookie = (name) => {
   const value = `; ${document.cookie}`;
@@ -129,12 +131,22 @@ const animateEntrance = () => {
 };
 
 const setActiveView = (viewName) => {
+  const current = document.querySelector(".view.active-view");
   const views = document.querySelectorAll(".view");
   views.forEach((view) => view.classList.remove("active-view"));
 
   const target = document.getElementById(`${viewName}View`);
   if (target) {
     target.classList.add("active-view");
+    if (window.gsap) {
+      gsap.fromTo(
+        target,
+        { opacity: 0, y: 10 },
+        { opacity: 1, y: 0, duration: 0.45, ease: "power2.out" }
+      );
+    } else {
+      target.style.opacity = "1";
+    }
   }
 
   const navItems = document.querySelectorAll("[data-view]");
@@ -150,6 +162,10 @@ const setActiveView = (viewName) => {
     document.body.classList.add("theme-infographic");
   } else {
     document.body.classList.remove("theme-infographic");
+  }
+
+  if (current && current !== target) {
+    current.style.opacity = "";
   }
 
   window.dispatchEvent(new Event("resize"));
@@ -320,7 +336,8 @@ const renderJobs = (jobs) => {
   jobs.forEach((job) => {
     const row = buildRow(job);
     row.addEventListener("click", async () => {
-      const response = await fetch(`${API_BASE}/jobs/${job.id}/`);
+      const qs = state.detailCacheBuster ? `?_=${state.detailCacheBuster}` : `?_=${freshToken()}`;
+      const response = await fetch(`${API_BASE}/jobs/${job.id}/${qs}`);
       if (!response.ok) return;
       const detail = await response.json();
       flipAnimate(row, () => renderDetail(detail));
@@ -351,8 +368,19 @@ const updatePagination = () => {
   el("#nextPage").disabled = state.page >= state.numPages;
 };
 
-const fetchJobs = async (params = {}) => {
+const upsertJobInState = (job) => {
+  if (!job || !job.id) return;
+  const idx = state.jobs.findIndex((item) => item.id === job.id);
+  if (idx === -1) {
+    state.jobs.unshift(job);
+    return;
+  }
+  state.jobs[idx] = { ...state.jobs[idx], ...job };
+};
+
+const fetchJobs = async (params = {}, options = {}) => {
   const query = new URLSearchParams(params);
+  if (options.fresh) query.set("_", freshToken());
   const response = await fetch(`${API_BASE}/jobs/?${query.toString()}`);
   if (!response.ok) {
     throw new Error("Failed to load jobs");
@@ -360,36 +388,49 @@ const fetchJobs = async (params = {}) => {
   return response.json();
 };
 
-const fetchStats = async () => {
-  const response = await fetch(`${API_BASE}/jobs/stats/`);
+const fetchStats = async (options = {}) => {
+  const url = options.fresh ? `${API_BASE}/jobs/stats/?_=${freshToken()}` : `${API_BASE}/jobs/stats/`;
+  const response = await fetch(url);
   if (!response.ok) {
     throw new Error("Failed to load stats");
   }
   return response.json();
 };
 
-const hydrate = async () => {
-  const [jobsRes, statsRes, analyticsRes] = await Promise.allSettled([
-    fetchJobs({ page: state.page }),
-    fetchStats(),
-    fetchAnalytics(),
-  ]);
+const fetchBootstrap = async (options = {}) => {
+  const url = options.fresh ? `${API_BASE}/bootstrap/?_=${freshToken()}` : `${API_BASE}/bootstrap/`;
+  const response = await fetch(url);
+  if (!response.ok) {
+    throw new Error("Failed to load bootstrap");
+  }
+  return response.json();
+};
 
-  if (jobsRes.status === "fulfilled") {
-    const jobs = jobsRes.value;
-    renderJobs(jobs.results || jobs);
+const hydrate = async () => {
+  try {
+    const bootstrap = await fetchBootstrap();
+    const jobs = bootstrap.jobs || {};
+    renderJobs(jobs.results || []);
     state.numPages = jobs.num_pages || 1;
     updatePagination();
-  } else {
-    renderJobs([]);
-  }
-
-  if (statsRes.status === "fulfilled") {
-    updateKPIs(statsRes.value);
-  }
-
-  if (analyticsRes.status === "fulfilled") {
-    updateAnalytics(analyticsRes.value);
+    if (bootstrap.stats) updateKPIs(bootstrap.stats);
+    fetchAnalytics().then(updateAnalytics).catch(() => {});
+  } catch (error) {
+    const [jobsRes, statsRes, analyticsRes] = await Promise.allSettled([
+      fetchJobs({ page: state.page }),
+      fetchStats(),
+      fetchAnalytics(),
+    ]);
+    if (jobsRes.status === "fulfilled") {
+      const jobs = jobsRes.value;
+      renderJobs(jobs.results || jobs);
+      state.numPages = jobs.num_pages || 1;
+      updatePagination();
+    } else {
+      renderJobs([]);
+    }
+    if (statsRes.status === "fulfilled") updateKPIs(statsRes.value);
+    if (analyticsRes.status === "fulfilled") updateAnalytics(analyticsRes.value);
   }
 };
 
@@ -559,12 +600,8 @@ const bindPhaseStepper = () => {
         return;
       }
       const updated = await response.json();
-      renderDetail(updated);
-      const jobs = await fetchJobs({
-        phase_prefix: state.activePhase,
-        q: state.query,
-      });
-      renderJobs(jobs.results || jobs);
+      upsertJobInState(updated);
+      renderJobs(state.jobs);
     });
   });
 };
@@ -644,71 +681,77 @@ const bindDetailSave = () => {
 
   button.addEventListener("click", async () => {
     if (!state.selectedJob) return;
+    const historyUpdates = [];
+    document.querySelectorAll(".history-input").forEach((input) => {
+      const historyId = input.dataset.historyId;
+      if (!historyId || !input.value) return;
+      if (input.dataset.original === input.value) return;
+      historyUpdates.push({
+        id: Number(historyId),
+        timestamp: new Date(input.value).toISOString(),
+      });
+    });
+
     const payload = {
       approved_loa_amount: Number(el("#detailLoa")?.value || 0),
       parts_price: Number(el("#detailParts")?.value || 0),
       labor_cost: Number(el("#detailLabor")?.value || 0),
       vat: Number(el("#detailVat")?.value || 0),
+      phase: statusSelect.value,
+      history_updates: historyUpdates,
     };
-    const detailResponse = await fetch(`${API_BASE}/jobs/${state.selectedJob.id}/`, {
+    const detailResponse = await fetch(
+      `${API_BASE}/jobs/${state.selectedJob.id}/bulk-update/?mode=fast`,
+      {
       method: "PATCH",
       headers: {
         "Content-Type": "application/json",
         "X-CSRFToken": getCookie("csrftoken"),
       },
       body: JSON.stringify(payload),
-    });
+      }
+    );
     if (!detailResponse.ok) {
-      alert("Failed to save changes.");
+      const detail = await detailResponse.json().catch(() => ({}));
+      alert(detail.detail || "Failed to save changes.");
       return;
     }
-    if (statusSelect.value !== state.selectedJob.phase) {
-      const phaseResponse = await fetch(`${API_BASE}/jobs/${state.selectedJob.id}/phase/`, {
-        method: "PATCH",
-        headers: {
-          "Content-Type": "application/json",
-          "X-CSRFToken": getCookie("csrftoken"),
-        },
-        body: JSON.stringify({ phase: statusSelect.value }),
-      });
-      if (!phaseResponse.ok) {
-        alert("Failed to update status.");
-        return;
-      }
-    }
+    const result = await detailResponse.json().catch(() => ({}));
+    state.detailCacheBuster = freshToken();
 
-    const historyInputs = document.querySelectorAll(".history-input");
-    if (historyInputs.length > 0) {
-      for (const input of historyInputs) {
-        const historyId = input.dataset.historyId;
-        if (!historyId || !input.value) continue;
-        if (input.dataset.original === input.value) continue;
-        const response = await fetch(`${API_BASE}/status-history/${historyId}/`, {
-          method: "PATCH",
-          headers: {
-            "Content-Type": "application/json",
-            "X-CSRFToken": getCookie("csrftoken"),
-          },
-          body: JSON.stringify({ timestamp: new Date(input.value).toISOString() }),
-        });
-        if (!response.ok) {
-          const detail = await response.json().catch(() => ({}));
-          alert(detail.detail || "Failed to update history timestamps.");
-          return;
-        }
-      }
+    const nowIso = new Date().toISOString();
+    const localDetail = {
+      ...state.selectedJob,
+      phase: payload.phase,
+      approved_loa_amount: payload.approved_loa_amount,
+      parts_price: payload.parts_price,
+      labor_cost: payload.labor_cost,
+      vat: payload.vat,
+      updated_at: result.job?.updated_at || nowIso,
+    };
+    if (Array.isArray(localDetail.history) && historyUpdates.length) {
+      const historyMap = new Map(historyUpdates.map((item) => [item.id, item.timestamp]));
+      localDetail.history = localDetail.history.map((entry) =>
+        historyMap.has(entry.id) ? { ...entry, timestamp: historyMap.get(entry.id) } : entry
+      );
     }
-    const refreshed = await fetch(`${API_BASE}/jobs/${state.selectedJob.id}/`);
-    if (refreshed.ok) {
-      const detail = await refreshed.json();
-      renderDetail(detail);
+    if (result.phase_changed && result.history_entry) {
+      localDetail.history = [result.history_entry, ...(localDetail.history || [])];
     }
-    const jobs = await fetchJobs({
-      phase_prefix: state.activePhase,
-      q: state.query,
-      insurance: state.activeInsurance || "",
+    state.selectedJob = localDetail;
+
+    upsertJobInState({
+      id: state.selectedJob.id,
+      phase: payload.phase,
+      approved_loa_amount: payload.approved_loa_amount,
+      parts_price: payload.parts_price,
+      labor_cost: payload.labor_cost,
+      vat: payload.vat,
+      updated_at: result.job?.updated_at || nowIso,
+      phase_started_at: nowIso,
+      days_in_current_phase: 1,
     });
-    renderJobs(jobs.results || jobs);
+    renderJobs(state.jobs);
     const modal = el("#detailModal");
     if (modal) {
       if (window.gsap) {
@@ -789,8 +832,9 @@ const bindPagination = () => {
   });
 };
 
-const fetchAnalytics = async (range = "30d", extraParams = {}) => {
+const fetchAnalytics = async (range = "30d", extraParams = {}, options = {}) => {
   const params = new URLSearchParams({ range, ...extraParams });
+  if (options.fresh) params.set("_", freshToken());
   const response = await fetch(`${API_BASE}/analytics/?${params.toString()}`);
   if (!response.ok) {
     const detail = await response.text().catch(() => "");
@@ -892,6 +936,60 @@ const bindRangeButtons = () => {
   });
 };
 
+const bindDataImport = () => {
+  const fileInput = el("#importCsvFile");
+  const importButton = el("#importCsvButton");
+  const statusEl = el("#importCsvStatus");
+  if (!fileInput || !importButton || !statusEl) return;
+
+  const setStatus = (text) => {
+    statusEl.textContent = text;
+  };
+
+  const submitImport = async (file) => {
+    if (!file) return;
+    importButton.disabled = true;
+    setStatus("Importing CSV...");
+
+    const formData = new FormData();
+    formData.append("file", file);
+
+    try {
+      const response = await fetch(`${API_BASE}/import/csv/`, {
+        method: "POST",
+        headers: {
+          "X-CSRFToken": getCookie("csrftoken"),
+        },
+        body: formData,
+      });
+
+      if (!response.ok) {
+        const err = await response.json().catch(() => ({}));
+        setStatus(err.detail || "Import failed. Please check your CSV file.");
+        return;
+      }
+
+      const result = await response.json();
+      setStatus(`Import complete. Created ${result.created || 0}, skipped ${result.skipped || 0}.`);
+      fileInput.value = "";
+    } catch (error) {
+      setStatus("Import failed. Please try again.");
+    } finally {
+      importButton.disabled = false;
+    }
+  };
+
+  importButton.addEventListener("click", () => {
+    fileInput.click();
+  });
+
+  fileInput.addEventListener("change", () => {
+    const [file] = fileInput.files || [];
+    if (!file) return;
+    submitImport(file);
+  });
+};
+
 document.addEventListener("DOMContentLoaded", () => {
   try {
     bindViewNav();
@@ -905,6 +1003,7 @@ document.addEventListener("DOMContentLoaded", () => {
     bindDetailSave();
     bindPagination();
     bindRangeButtons();
+    bindDataImport();
     initChart();
     hydrate();
     animateEntrance();
