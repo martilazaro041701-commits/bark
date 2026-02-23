@@ -980,6 +980,10 @@ const bindDataImport = () => {
   };
 
   importButton.addEventListener("click", () => {
+    if (typeof fileInput.showPicker === "function") {
+      fileInput.showPicker();
+      return;
+    }
     fileInput.click();
   });
 
@@ -991,23 +995,29 @@ const bindDataImport = () => {
 };
 
 document.addEventListener("DOMContentLoaded", () => {
-  try {
-    bindViewNav();
-    setActiveView("dashboard");
-    bindSidebar();
-    bindDetailClose();
-    bindFilters();
-    bindSearch();
-    bindNewJob();
-    bindFilterMenus();
-    bindDetailSave();
-    bindPagination();
-    bindRangeButtons();
-    bindDataImport();
-    initChart();
-    hydrate();
-    animateEntrance();
-  } catch (error) {
-    console.error("Dashboard initialization error:", error);
-  }
+  const runInit = (name, fn) => {
+    try {
+      fn();
+    } catch (error) {
+      console.error(`Initialization failed: ${name}`, error);
+    }
+  };
+
+  runInit("bindViewNav", bindViewNav);
+  runInit("setActiveView", () => setActiveView("dashboard"));
+  runInit("bindDataImport", bindDataImport);
+  runInit("bindSidebar", bindSidebar);
+  runInit("bindDetailClose", bindDetailClose);
+  runInit("bindFilters", bindFilters);
+  runInit("bindSearch", bindSearch);
+  runInit("bindNewJob", bindNewJob);
+  runInit("bindFilterMenus", bindFilterMenus);
+  runInit("bindDetailSave", bindDetailSave);
+  runInit("bindPagination", bindPagination);
+  runInit("bindRangeButtons", bindRangeButtons);
+  runInit("initChart", initChart);
+  runInit("animateEntrance", animateEntrance);
+  runInit("hydrate", () => {
+    hydrate().catch((error) => console.error("Hydrate failed", error));
+  });
 });
