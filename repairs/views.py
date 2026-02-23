@@ -1224,37 +1224,62 @@ class CsvExportAPIView(APIView):
                 "labor_cost",
                 "vat",
                 "total_cost",
-                "phase",
-                "created_at",
-                "updated_at",
+                "current_phase",
+                "job_created_at",
+                "job_updated_at",
+                "history_id",
+                "old_phase",
+                "new_phase",
+                "status_timestamp",
+                "duration_seconds",
+                "changed_by_user_id",
             ]
         )
 
-        jobs = Job.objects.select_related("vehicle", "vehicle__customer").order_by("id")
+        jobs = Job.objects.select_related("vehicle", "vehicle__customer").prefetch_related("status_history").order_by("id")
         for job in jobs.iterator():
             customer = job.vehicle.customer
-            writer.writerow(
-                [
-                    job.id,
-                    customer.name,
-                    customer.phone,
-                    customer.email,
-                    customer.address,
-                    job.vehicle.model,
-                    job.vehicle.plate_number,
-                    job.vehicle.insurance_company,
-                    job.description,
-                    job.total_estimate,
-                    job.approved_loa_amount,
-                    job.parts_price,
-                    job.labor_cost,
-                    job.vat,
-                    job.total_cost,
-                    job.phase,
-                    timezone.localtime(job.created_at).isoformat(),
-                    timezone.localtime(job.updated_at).isoformat(),
-                ]
-            )
+            base = [
+                job.id,
+                customer.name,
+                customer.phone,
+                customer.email,
+                customer.address,
+                job.vehicle.model,
+                job.vehicle.plate_number,
+                job.vehicle.insurance_company,
+                job.description,
+                job.total_estimate,
+                job.approved_loa_amount,
+                job.parts_price,
+                job.labor_cost,
+                job.vat,
+                job.total_cost,
+                job.phase,
+                timezone.localtime(job.created_at).isoformat(),
+                timezone.localtime(job.updated_at).isoformat(),
+            ]
+
+            history_entries = list(job.status_history.all().order_by("timestamp"))
+            if not history_entries:
+                writer.writerow(base + ["", "", "", "", "", ""])
+                continue
+
+            for entry in history_entries:
+                duration_seconds = (
+                    entry.duration.total_seconds() if entry.duration is not None else ""
+                )
+                writer.writerow(
+                    base
+                    + [
+                        entry.id,
+                        entry.old_phase or "",
+                        entry.new_phase,
+                        timezone.localtime(entry.timestamp).isoformat(),
+                        duration_seconds,
+                        entry.user_id or "",
+                    ]
+                )
 
         return response
 
