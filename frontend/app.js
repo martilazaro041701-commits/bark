@@ -937,60 +937,53 @@ const bindRangeButtons = () => {
 };
 
 const bindDataImport = () => {
-  const fileInput = el("#importCsvFile");
   const importButton = el("#importCsvButton");
   const statusEl = el("#importCsvStatus");
-  if (!fileInput || !importButton || !statusEl) return;
+  if (!importButton || !statusEl) return;
 
   const setStatus = (text) => {
     statusEl.textContent = text;
   };
 
-  const submitImport = async (file) => {
-    if (!file) return;
+  const runExport = async () => {
     importButton.disabled = true;
-    setStatus("Importing CSV...");
-
-    const formData = new FormData();
-    formData.append("file", file);
+    setStatus("Preparing CSV export...");
 
     try {
-      const response = await fetch(`${API_BASE}/import/csv/`, {
-        method: "POST",
-        headers: {
-          "X-CSRFToken": getCookie("csrftoken"),
-        },
-        body: formData,
+      const response = await fetch(`${API_BASE}/export/csv/`, {
+        method: "GET",
       });
 
       if (!response.ok) {
         const err = await response.json().catch(() => ({}));
-        setStatus(err.detail || "Import failed. Please check your CSV file.");
+        setStatus(err.detail || "Export failed. Please try again.");
         return;
       }
 
-      const result = await response.json();
-      setStatus(`Import complete. Created ${result.created || 0}, skipped ${result.skipped || 0}.`);
-      fileInput.value = "";
+      const blob = await response.blob();
+      const disposition = response.headers.get("content-disposition") || "";
+      const match = disposition.match(/filename="?([^"]+)"?/i);
+      const filename = match?.[1] || `modu_database_export_${Date.now()}.csv`;
+
+      const link = document.createElement("a");
+      const objectUrl = URL.createObjectURL(blob);
+      link.href = objectUrl;
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(objectUrl);
+
+      setStatus("CSV export downloaded.");
     } catch (error) {
-      setStatus("Import failed. Please try again.");
+      setStatus("Export failed. Please try again.");
     } finally {
       importButton.disabled = false;
     }
   };
 
   importButton.addEventListener("click", () => {
-    if (typeof fileInput.showPicker === "function") {
-      fileInput.showPicker();
-      return;
-    }
-    fileInput.click();
-  });
-
-  fileInput.addEventListener("change", () => {
-    const [file] = fileInput.files || [];
-    if (!file) return;
-    submitImport(file);
+    runExport();
   });
 };
 

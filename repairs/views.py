@@ -1,4 +1,5 @@
 from datetime import datetime, time, timedelta
+import csv
 import logging
 import time as _time
 
@@ -14,6 +15,7 @@ from django.db.models import (
     F,
     OuterRef,
     Q,
+    Prefetch,
     Subquery,
     Sum,
     Value,
@@ -22,6 +24,7 @@ from django.db.models import (
 from django.db.models.functions import Coalesce, TruncDate
 from django.contrib.auth import authenticate, login, logout
 from django.http import JsonResponse
+from django.http import HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
 from django.utils.dateparse import parse_datetime
@@ -36,14 +39,32 @@ from .serializers import (
     JobDetailSerializer,
     JobSerializer,
     JobUpdateSerializer,
+    StatusHistorySerializer,
 )
 
 logger = logging.getLogger(__name__)
+LIST_PAGE_SIZE = 20
 
 
 def _log_timing(name, request, start):
     elapsed = _time.monotonic() - start
     logger.info("timing %s %s %.3fs", name, request.path, elapsed)
+
+
+def _cached_response(payload, *, s_maxage=10, stale_revalidate=30):
+    response = Response(payload)
+    cache_value = f"public, s-maxage={s_maxage}, stale-while-revalidate={stale_revalidate}"
+    response["Cache-Control"] = cache_value
+    response["CDN-Cache-Control"] = cache_value
+    response["Vercel-CDN-Cache-Control"] = cache_value
+    vary_header = response.get("Vary", "")
+    vary_values = [v.strip() for v in vary_header.split(",") if v.strip()]
+    vary_values = [v for v in vary_values if v.lower() != "cookie"]
+    if vary_values:
+        response["Vary"] = ", ".join(vary_values)
+    elif "Vary" in response:
+        del response["Vary"]
+    return response
 
 
 def _parse_date_range(request, default_days=30):
@@ -112,6 +133,8 @@ def _normalize_model_name(raw_value):
 
 
 class JobListCreateAPIView(APIView):
+    authentication_classes = []
+
     def get(self, request):
         _start = _time.monotonic()
         try:
@@ -170,15 +193,17 @@ class JobListCreateAPIView(APIView):
                     jobs = jobs.filter(vehicle__insurance_company__in=ins)
 
             page_number = int(request.query_params.get("page", 1))
-            paginator = Paginator(jobs, 50)
+            paginator = Paginator(jobs, LIST_PAGE_SIZE)
             page_obj = paginator.get_page(page_number)
-            return Response(
+            return _cached_response(
                 {
                     "results": JobSerializer(page_obj.object_list, many=True).data,
                     "page": page_obj.number,
                     "num_pages": paginator.num_pages,
                     "count": paginator.count,
-                }
+                },
+                s_maxage=20,
+                stale_revalidate=60,
             )
         finally:
             _log_timing("JobListCreateAPIView.get", request, _start)
@@ -240,14 +265,28 @@ class JobListCreateAPIView(APIView):
 
 
 class JobDetailAPIView(APIView):
+    authentication_classes = []
+
     def get(self, request, pk):
         _start = _time.monotonic()
         try:
             job = get_object_or_404(
-                Job.objects.select_related("vehicle", "vehicle__customer"),
+                Job.objects.select_related("vehicle", "vehicle__customer").prefetch_related(
+                    Prefetch(
+                        "status_history",
+                        queryset=StatusHistory.objects.only(
+                            "id", "job_id", "old_phase", "new_phase", "timestamp", "duration"
+                        ).order_by("-timestamp"),
+                        to_attr="prefetched_history",
+                    )
+                ),
                 pk=pk,
             )
-            return Response(JobDetailSerializer(job, context={"request": request}).data)
+            return _cached_response(
+                JobDetailSerializer(job, context={"request": request}).data,
+                s_maxage=20,
+                stale_revalidate=60,
+            )
         finally:
             _log_timing("JobDetailAPIView.get", request, _start)
 
@@ -274,6 +313,120 @@ class JobPhaseUpdateAPIView(APIView):
             return Response({"detail": "Invalid phase."}, status=status.HTTP_400_BAD_REQUEST)
         job.change_phase(phase, user=request.user if request.user.is_authenticated else None)
         return Response(JobSerializer(job).data)
+
+
+class JobBulkUpdateAPIView(APIView):
+    def patch(self, request, pk):
+        mode = (request.query_params.get("mode") or "fast").lower()
+        job = get_object_or_404(
+            Job.objects.select_related("vehicle", "vehicle__customer"),
+            pk=pk,
+        )
+        phase_changed = False
+
+        with transaction.atomic():
+            serializer = JobUpdateSerializer(data=request.data)
+            serializer.is_valid(raise_exception=True)
+            serializer.update(job, serializer.validated_data)
+
+            phase = request.data.get("phase")
+            if phase:
+                valid_phases = {choice[0] for choice in JobPhase.choices}
+                if phase not in valid_phases:
+                    return Response({"detail": "Invalid phase."}, status=status.HTTP_400_BAD_REQUEST)
+                if phase != job.phase:
+                    job.change_phase(
+                        phase,
+                        user=request.user if request.user.is_authenticated else None,
+                    )
+                    phase_changed = True
+
+            history_updates = request.data.get("history_updates") or []
+            if history_updates:
+                if not request.user.is_authenticated or not request.user.is_superuser:
+                    return Response({"detail": "Forbidden."}, status=status.HTTP_403_FORBIDDEN)
+
+                history_map = {
+                    entry.id: entry
+                    for entry in StatusHistory.objects.filter(job=job).order_by("timestamp")
+                }
+                ordered_history = list(history_map.values())
+
+                for update in history_updates:
+                    entry_id = update.get("id")
+                    timestamp = update.get("timestamp")
+                    entry = history_map.get(entry_id)
+                    if not entry or not timestamp:
+                        return Response(
+                            {"detail": "Invalid history update payload."},
+                            status=status.HTTP_400_BAD_REQUEST,
+                        )
+
+                    new_ts = parse_datetime(timestamp)
+                    if new_ts is None:
+                        return Response({"detail": "Invalid timestamp."}, status=status.HTTP_400_BAD_REQUEST)
+                    if timezone.is_naive(new_ts):
+                        new_ts = timezone.make_aware(new_ts, timezone.get_current_timezone())
+                    if new_ts == entry.timestamp:
+                        continue
+
+                    idx = ordered_history.index(entry)
+                    prev_entry = ordered_history[idx - 1] if idx > 0 else None
+                    next_entry = ordered_history[idx + 1] if idx < len(ordered_history) - 1 else None
+
+                    local_new = timezone.localtime(new_ts).date()
+                    if prev_entry and local_new < timezone.localtime(prev_entry.timestamp).date():
+                        return Response(
+                            {"detail": "Timestamp cannot be before previous phase."},
+                            status=status.HTTP_400_BAD_REQUEST,
+                        )
+                    if next_entry and local_new > timezone.localtime(next_entry.timestamp).date():
+                        return Response(
+                            {"detail": "Timestamp cannot be after next phase."},
+                            status=status.HTTP_400_BAD_REQUEST,
+                        )
+
+                    entry.timestamp = new_ts
+                    entry.save(update_fields=["timestamp"])
+
+        if mode == "full":
+            refreshed_job = get_object_or_404(
+                Job.objects.select_related("vehicle", "vehicle__customer").prefetch_related(
+                    Prefetch(
+                        "status_history",
+                        queryset=StatusHistory.objects.only(
+                            "id", "job_id", "old_phase", "new_phase", "timestamp", "duration"
+                        ).order_by("-timestamp"),
+                        to_attr="prefetched_history",
+                    )
+                ),
+                pk=pk,
+            )
+            return Response(
+                {
+                    "detail": JobDetailSerializer(refreshed_job, context={"request": request}).data,
+                    "list_item": JobSerializer(refreshed_job).data,
+                }
+            )
+
+        return Response(
+            {
+                "ok": True,
+                "job": {
+                    "id": job.id,
+                    "phase": job.phase,
+                    "updated_at": job.updated_at,
+                },
+                "phase_changed": phase_changed,
+                "history_entry": (
+                    StatusHistorySerializer(
+                        StatusHistory.objects.filter(job=job).order_by("-timestamp").first()
+                    ).data
+                    if phase_changed
+                    else None
+                ),
+            }
+        )
 
 
 class StatusHistoryUpdateAPIView(APIView):
@@ -356,6 +509,8 @@ def logout_view(request):
 
 
 class JobStatsAPIView(APIView):
+    authentication_classes = []
+
     def get(self, request):
         _start = _time.monotonic()
         try:
@@ -392,7 +547,7 @@ class JobStatsAPIView(APIView):
                 trend_labels.append(day.strftime("%b %d"))
                 trend_values.append(count)
 
-            return Response(
+            return _cached_response(
                 {
                     "active": active,
                     "avgCycle": avg_cycle_str,
@@ -402,13 +557,17 @@ class JobStatsAPIView(APIView):
                     "revenueRatio": revenue_ratio,
                     "trendLabels": trend_labels,
                     "trendValues": trend_values,
-                }
+                },
+                s_maxage=20,
+                stale_revalidate=60,
             )
         finally:
             _log_timing("JobStatsAPIView.get", request, _start)
 
 
 class AnalyticsAPIView(APIView):
+    authentication_classes = []
+
     def get(self, request):
         _start = _time.monotonic()
         try:
@@ -547,12 +706,101 @@ class AnalyticsAPIView(APIView):
                 "billingPendingTotal": float(billing_pending_total),
                 "cycleTimes": cycle_times,
             }
-            return Response(analytics)
+            return _cached_response(analytics, s_maxage=20, stale_revalidate=60)
         finally:
             _log_timing("AnalyticsAPIView.get", request, _start)
 
 
+class DashboardBootstrapAPIView(APIView):
+    authentication_classes = []
+
+    def get(self, request):
+        _start = _time.monotonic()
+        try:
+            latest_status_ts = Subquery(
+                StatusHistory.objects.filter(job=OuterRef("pk"))
+                .order_by("-timestamp")
+                .values("timestamp")[:1]
+            )
+            first_status_ts = Subquery(
+                StatusHistory.objects.filter(job=OuterRef("pk"))
+                .order_by("timestamp")
+                .values("timestamp")[:1]
+            )
+            billing_released_ts = Subquery(
+                StatusHistory.objects.filter(
+                    job=OuterRef("pk"), new_phase=JobPhase.BILLING_RELEASED
+                )
+                .order_by("-timestamp")
+                .values("timestamp")[:1]
+            )
+            jobs_qs = (
+                Job.objects.select_related("vehicle", "vehicle__customer")
+                .annotate(
+                    latest_status_ts=latest_status_ts,
+                    first_status_ts=first_status_ts,
+                    billing_released_ts=billing_released_ts,
+                )
+                .order_by("-updated_at")
+            )
+            paginator = Paginator(jobs_qs, LIST_PAGE_SIZE)
+            page_obj = paginator.get_page(1)
+            jobs_payload = {
+                "results": JobSerializer(page_obj.object_list, many=True).data,
+                "page": page_obj.number,
+                "num_pages": paginator.num_pages,
+                "count": paginator.count,
+            }
+
+            now = timezone.now()
+            week_start = now - timedelta(days=7)
+            active = Job.objects.count()
+            released = Job.objects.filter(
+                phase__in=[JobPhase.PICKUP_RELEASED, JobPhase.BILLING_RELEASED],
+                updated_at__gte=week_start,
+            ).count()
+            avg_cycle = (
+                StatusHistory.objects.filter(old_phase=JobPhase.REPAIR_ONGOING_BODY_PAINT)
+                .aggregate(avg=Avg("duration"))
+                .get("avg")
+            )
+            avg_cycle_str = "--"
+            if avg_cycle:
+                avg_days = avg_cycle.total_seconds() / 86400
+                avg_cycle_str = f"{avg_days:.1f} days"
+            alerts = Job.objects.filter(phase=JobPhase.APPROVAL_LOA_REJECTED).count()
+            revenue = Job.objects.aggregate(total=models.Sum("total_cost")).get("total") or 0
+            revenue_ratio = min(float(revenue) / 1000000, 1.0) if revenue else 0
+            trend_labels = []
+            trend_values = []
+            for i in range(6, -1, -1):
+                day = (now - timedelta(days=i)).date()
+                count = Job.objects.filter(updated_at__date=day).count()
+                trend_labels.append(day.strftime("%b %d"))
+                trend_values.append(count)
+            stats_payload = {
+                "active": active,
+                "avgCycle": avg_cycle_str,
+                "alerts": alerts,
+                "throughput": released,
+                "revenue": float(revenue),
+                "revenueRatio": revenue_ratio,
+                "trendLabels": trend_labels,
+                "trendValues": trend_values,
+            }
+
+            return _cached_response(
+                {"jobs": jobs_payload, "stats": stats_payload},
+                s_maxage=20,
+                stale_revalidate=60,
+            )
+        finally:
+            _log_timing("DashboardBootstrapAPIView.get", request, _start)
+
+
 class ChartsAPIView(APIView):
+    authentication_classes = []
+
     def get(self, request):
         _start = _time.monotonic()
         try:
@@ -635,7 +883,7 @@ class ChartsAPIView(APIView):
                 for key, value in sorted(phase_counts.items(), key=lambda x: x[1], reverse=True)
             ]
 
-            return Response(
+            return _cached_response(
                 {
                     "range": {
                         "start_date": start_date.isoformat(),
@@ -655,13 +903,17 @@ class ChartsAPIView(APIView):
                         "total": float(loa_approved_total),
                     },
                     "phaseConcentration": phase_concentration,
-                }
+                },
+                s_maxage=60,
+                stale_revalidate=180,
             )
         finally:
             _log_timing("ChartsAPIView.get", request, _start)
 
 
 class TablesAPIView(APIView):
+    authentication_classes = []
+
     def get(self, request):
         _start = _time.monotonic()
         try:
@@ -828,7 +1080,7 @@ class TablesAPIView(APIView):
             )
             pending_repair_avg = pending_repair_qs.aggregate(avg=Avg("duration")).get("avg")
 
-            return Response(
+            return _cached_response(
                 {
                     "range": {
                         "start_date": start_date.isoformat(),
@@ -844,7 +1096,9 @@ class TablesAPIView(APIView):
                         "count": pending_repair_qs.count(),
                         "avg_seconds": _duration_seconds(pending_repair_avg),
                     },
-                }
+                },
+                s_maxage=60,
+                stale_revalidate=180,
             )
         finally:
             _log_timing("TablesAPIView.get", request, _start)
@@ -941,5 +1195,67 @@ class CsvImportAPIView(APIView):
             },
             status=status.HTTP_201_CREATED,
         )
+
+
+class CsvExportAPIView(APIView):
+    def get(self, request):
+        if not request.user.is_authenticated:
+            return Response({"detail": "Authentication required."}, status=status.HTTP_403_FORBIDDEN)
+
+        filename = timezone.localtime().strftime("modu_database_export_%Y%m%d_%H%M%S.csv")
+        response = HttpResponse(content_type="text/csv")
+        response["Content-Disposition"] = f'attachment; filename="{filename}"'
+
+        writer = csv.writer(response)
+        writer.writerow(
+            [
+                "job_id",
+                "customer_name",
+                "customer_phone",
+                "customer_email",
+                "customer_address",
+                "vehicle_model",
+                "plate_number",
+                "insurance_company",
+                "description",
+                "total_estimate",
+                "approved_loa_amount",
+                "parts_price",
+                "labor_cost",
+                "vat",
+                "total_cost",
+                "phase",
+                "created_at",
+                "updated_at",
+            ]
+        )
+
+        jobs = Job.objects.select_related("vehicle", "vehicle__customer").order_by("id")
+        for job in jobs.iterator():
+            customer = job.vehicle.customer
+            writer.writerow(
+                [
+                    job.id,
+                    customer.name,
+                    customer.phone,
+                    customer.email,
+                    customer.address,
+                    job.vehicle.model,
+                    job.vehicle.plate_number,
+                    job.vehicle.insurance_company,
+                    job.description,
+                    job.total_estimate,
+                    job.approved_loa_amount,
+                    job.parts_price,
+                    job.labor_cost,
+                    job.vat,
+                    job.total_cost,
+                    job.phase,
+                    timezone.localtime(job.created_at).isoformat(),
+                    timezone.localtime(job.updated_at).isoformat(),
+                ]
+            )
+
+        return response
 
 # Create your views here.
