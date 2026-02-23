@@ -24,7 +24,7 @@ from django.db.models import (
 from django.db.models.functions import Coalesce, TruncDate
 from django.contrib.auth import authenticate, login, logout
 from django.http import JsonResponse
-from django.http import HttpResponse
+from django.http import StreamingHttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
 from django.utils.dateparse import parse_datetime
@@ -1203,75 +1203,74 @@ class CsvExportAPIView(APIView):
             return Response({"detail": "Authentication required."}, status=status.HTTP_403_FORBIDDEN)
 
         filename = timezone.localtime().strftime("modu_database_export_%Y%m%d_%H%M%S.csv")
-        response = HttpResponse(content_type="text/csv")
-        response["Content-Disposition"] = f'attachment; filename="{filename}"'
 
-        writer = csv.writer(response)
-        writer.writerow(
-            [
-                "job_id",
-                "customer_name",
-                "customer_phone",
-                "customer_email",
-                "customer_address",
-                "vehicle_model",
-                "plate_number",
-                "insurance_company",
-                "description",
-                "total_estimate",
-                "approved_loa_amount",
-                "parts_price",
-                "labor_cost",
-                "vat",
-                "total_cost",
-                "current_phase",
-                "job_created_at",
-                "job_updated_at",
-                "history_id",
-                "old_phase",
-                "new_phase",
-                "status_timestamp",
-                "duration_seconds",
-                "changed_by_user_id",
-            ]
+        class Echo:
+            def write(self, value):
+                return value
+
+        writer = csv.writer(Echo())
+
+        header = [
+            "job_id",
+            "customer_name",
+            "customer_phone",
+            "customer_email",
+            "customer_address",
+            "vehicle_model",
+            "plate_number",
+            "insurance_company",
+            "description",
+            "total_estimate",
+            "approved_loa_amount",
+            "parts_price",
+            "labor_cost",
+            "vat",
+            "total_cost",
+            "current_phase",
+            "job_created_at",
+            "job_updated_at",
+            "history_id",
+            "old_phase",
+            "new_phase",
+            "status_timestamp",
+            "duration_seconds",
+            "changed_by_user_id",
+        ]
+
+        history_rows = (
+            StatusHistory.objects.select_related("job__vehicle__customer")
+            .order_by("job_id", "timestamp")
         )
 
-        jobs = Job.objects.select_related("vehicle", "vehicle__customer").prefetch_related("status_history").order_by("id")
-        for job in jobs.iterator():
-            customer = job.vehicle.customer
-            base = [
-                job.id,
-                customer.name,
-                customer.phone,
-                customer.email,
-                customer.address,
-                job.vehicle.model,
-                job.vehicle.plate_number,
-                job.vehicle.insurance_company,
-                job.description,
-                job.total_estimate,
-                job.approved_loa_amount,
-                job.parts_price,
-                job.labor_cost,
-                job.vat,
-                job.total_cost,
-                job.phase,
-                timezone.localtime(job.created_at).isoformat(),
-                timezone.localtime(job.updated_at).isoformat(),
-            ]
-
-            history_entries = list(job.status_history.all().order_by("timestamp"))
-            if not history_entries:
-                writer.writerow(base + ["", "", "", "", "", ""])
-                continue
-
-            for entry in history_entries:
+        def row_stream():
+            yield writer.writerow(header)
+            for entry in history_rows.iterator(chunk_size=2000):
+                job = entry.job
+                vehicle = job.vehicle
+                customer = vehicle.customer
                 duration_seconds = (
                     entry.duration.total_seconds() if entry.duration is not None else ""
                 )
-                writer.writerow(
-                    base
-                    + [
+                yield writer.writerow(
+                    [
+                        job.id,
+                        customer.name,
+                        customer.phone,
+                        customer.email,
+                        customer.address,
+                        vehicle.model,
+                        vehicle.plate_number,
+                        vehicle.insurance_company,
+                        job.description,
+                        job.total_estimate,
+                        job.approved_loa_amount,
+                        job.parts_price,
+                        job.labor_cost,
+                        job.vat,
+                        job.total_cost,
+                        job.phase,
+                        timezone.localtime(job.created_at).isoformat(),
+                        timezone.localtime(job.updated_at).isoformat(),
                         entry.id,
                         entry.old_phase or "",
                         entry.new_phase,
@@ -1281,6 +1280,8 @@ class CsvExportAPIView(APIView):
                     ]
                 )
 
+        response = StreamingHttpResponse(row_stream(), content_type="text/csv")
+        response["Content-Disposition"] = f'attachment; filename="{filename}"'
         return response
 
 # Create your views here.

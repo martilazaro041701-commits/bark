@@ -947,38 +947,21 @@ const bindDataImport = () => {
 
   const runExport = async () => {
     importButton.disabled = true;
-    setStatus("Preparing CSV export...");
+    setStatus("Starting CSV download...");
 
     try {
-      const response = await fetch(`${API_BASE}/export/csv/`, {
-        method: "GET",
-      });
-
-      if (!response.ok) {
-        const err = await response.json().catch(() => ({}));
-        setStatus(err.detail || "Export failed. Please try again.");
-        return;
-      }
-
-      const blob = await response.blob();
-      const disposition = response.headers.get("content-disposition") || "";
-      const match = disposition.match(/filename="?([^"]+)"?/i);
-      const filename = match?.[1] || `modu_database_export_${Date.now()}.csv`;
-
       const link = document.createElement("a");
-      const objectUrl = URL.createObjectURL(blob);
-      link.href = objectUrl;
-      link.download = filename;
+      link.href = `${API_BASE}/export/csv/?_=${freshToken()}`;
       document.body.appendChild(link);
       link.click();
       link.remove();
-      URL.revokeObjectURL(objectUrl);
-
-      setStatus("CSV export downloaded.");
+      setStatus("Download started. Check your Downloads folder.");
     } catch (error) {
       setStatus("Export failed. Please try again.");
     } finally {
-      importButton.disabled = false;
+      setTimeout(() => {
+        importButton.disabled = false;
+      }, 1200);
     }
   };
 
